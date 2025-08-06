@@ -11,7 +11,9 @@ const SettingsPage = () => {
     },
     clickup: {
       token: '',
-      teamId: ''
+      teamId: '',
+      boardIds: [],
+      listIds: []
     },
     slack: {
       webhookUrl: ''
@@ -23,6 +25,8 @@ const SettingsPage = () => {
 
   const [newRepo, setNewRepo] = useState('')
   const [newMember, setNewMember] = useState({ name: '', role: '', githubUsername: '', clickupId: '' })
+  const [newBoardId, setNewBoardId] = useState('')
+  const [newListId, setNewListId] = useState('')
   const [testResults, setTestResults] = useState({})
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState({})
@@ -176,6 +180,52 @@ const SettingsPage = () => {
       team: {
         ...prev.team,
         members: prev.team.members.filter(m => m.id !== memberId)
+      }
+    }))
+  }
+
+  const addBoardId = () => {
+    if (newBoardId.trim() && !settings.clickup.boardIds.includes(newBoardId.trim())) {
+      setSettings(prev => ({
+        ...prev,
+        clickup: {
+          ...prev.clickup,
+          boardIds: [...prev.clickup.boardIds, newBoardId.trim()]
+        }
+      }))
+      setNewBoardId('')
+    }
+  }
+
+  const removeBoardId = (boardId) => {
+    setSettings(prev => ({
+      ...prev,
+      clickup: {
+        ...prev.clickup,
+        boardIds: prev.clickup.boardIds.filter(id => id !== boardId)
+      }
+    }))
+  }
+
+  const addListId = () => {
+    if (newListId.trim() && !settings.clickup.listIds.includes(newListId.trim())) {
+      setSettings(prev => ({
+        ...prev,
+        clickup: {
+          ...prev.clickup,
+          listIds: [...prev.clickup.listIds, newListId.trim()]
+        }
+      }))
+      setNewListId('')
+    }
+  }
+
+  const removeListId = (listId) => {
+    setSettings(prev => ({
+      ...prev,
+      clickup: {
+        ...prev.clickup,
+        listIds: prev.clickup.listIds.filter(id => id !== listId)
       }
     }))
   }
@@ -337,6 +387,80 @@ const SettingsPage = () => {
             />
             <p className="text-xs text-gray-500 mt-1">
               Find in ClickUp URL: app.clickup.com/[TEAM_ID]/...
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Board IDs (Optional - specific boards to track)
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newBoardId}
+                onChange={(e) => setNewBoardId(e.target.value)}
+                placeholder="Board ID (e.g., 901234567890)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                onKeyPress={(e) => e.key === 'Enter' && addBoardId()}
+              />
+              <button onClick={addBoardId} className="btn-secondary">
+                Add
+              </button>
+            </div>
+            
+            <div className="space-y-1 mb-3">
+              {settings.clickup.boardIds.map((boardId) => (
+                <div key={boardId} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
+                  <span className="text-sm font-mono">{boardId}</span>
+                  <button
+                    onClick={() => removeBoardId(boardId)}
+                    className="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-xs text-gray-500">
+              Find Board ID in ClickUp URL: app.clickup.com/[TEAM_ID]/v/b/[BOARD_ID]
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              List IDs (Optional - specific lists to track)
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newListId}
+                onChange={(e) => setNewListId(e.target.value)}
+                placeholder="List ID (e.g., 901234567890)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                onKeyPress={(e) => e.key === 'Enter' && addListId()}
+              />
+              <button onClick={addListId} className="btn-secondary">
+                Add
+              </button>
+            </div>
+            
+            <div className="space-y-1 mb-3">
+              {settings.clickup.listIds.map((listId) => (
+                <div key={listId} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
+                  <span className="text-sm font-mono">{listId}</span>
+                  <button
+                    onClick={() => removeListId(listId)}
+                    className="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-xs text-gray-500">
+              Find List ID in ClickUp URL: app.clickup.com/[TEAM_ID]/v/li/[LIST_ID]. Leave empty to track all lists in the team.
             </p>
           </div>
 

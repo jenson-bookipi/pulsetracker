@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { AlertTriangle, RefreshCw, Settings } from 'lucide-react'
 
 // Import hooks
@@ -22,6 +22,45 @@ const TeamDashboard = () => {
   const [refreshing, setRefreshing] = useState(false)
   const [corsError, setCorsError] = useState(null)
   const [showTaskFilters, setShowTaskFilters] = useState(false)
+  const [teamMembersFromList, setTeamMembersFromList] = useState([])
+  const [isFetchingMembers, setIsFetchingMembers] = useState(false)
+
+  // Initialize hooks at the top level
+  const githubData = useGitHubData(settings?.github)
+  const clickupData = useClickUpData(settings?.clickup?.token, settings?.clickup?.teamId)
+  const slackWebhook = useSlackWebhook(settings?.slack?.webhookUrl)
+  const blockedTickets = useBlockedTickets(clickupData, slackWebhook)
+
+  // Memoize the fetch function
+  const fetchTeamMembers = useCallback(async () => {
+    if (!clickupData?.fetchListTasksAndTeamMembers || isFetchingMembers) return;
+    
+    setIsFetchingMembers(true);
+    
+    try {
+      const LIST_ID = '901810346214';
+      const result = await clickupData.fetchListTasksAndTeamMembers(LIST_ID);
+      setTeamMembersFromList(prevMembers => {
+        // Only update if we have new members to prevent unnecessary re-renders
+        const newMembers = result.teamMembers || [];
+        if (JSON.stringify(prevMembers) !== JSON.stringify(newMembers)) {
+          return newMembers;
+        }
+        return prevMembers;
+      });
+    } catch (error) {
+      console.error('Error fetching team members from ClickUp list:', error);
+    } finally {
+      setIsFetchingMembers(false);
+    }
+  }, [clickupData?.fetchListTasksAndTeamMembers, isFetchingMembers]);
+
+  // Initial fetch when component mounts and when settings are loaded
+  useEffect(() => {
+    if (settings) {
+      fetchTeamMembers();
+    }
+  }, [settings]);
 
   // Load settings from localStorage
   useEffect(() => {
@@ -34,7 +73,7 @@ const TeamDashboard = () => {
           console.error('Failed to load settings:', error)
         }
       }
-    }
+    };
 
     loadSettings()
 
@@ -47,22 +86,10 @@ const TeamDashboard = () => {
     return () => window.removeEventListener('pulsetracker-settings-updated', handleSettingsUpdate)
   }, [])
 
-  // Initialize hooks with settings
-  const githubData = useGitHubData(
-    settings?.github?.token,
-    settings?.github?.repos || []
-  )
-
-  const clickupData = useClickUpData(
-    settings?.clickup?.token,
-    settings?.clickup?.teamId
-  )
-
-  const slackWebhook = useSlackWebhook(settings?.slack?.webhookUrl)
-  const blockedTickets = useBlockedTickets(clickupData, slackWebhook)
+  // Get team members - prioritize list members, fall back to settings
+  const teamMembers = teamMembersFromList.length > 0 ? teamMembersFromList : settings?.team?.members || []
 
   // Calculate burnout and happiness for each team member
-  const teamMembers = settings?.team?.members || []
   const burnoutData = {}
   const happinessData = {}
   
@@ -261,7 +288,7 @@ const TeamDashboard = () => {
           </div>
 
           {/* Sprint Tasks Section */}
-          {settings?.clickup?.token && (
+          {/* {settings?.clickup?.token && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -284,7 +311,7 @@ const TeamDashboard = () => {
                 />
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Team Members Grid */}
           {teamMembers.length > 0 && (

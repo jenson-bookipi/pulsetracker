@@ -167,9 +167,9 @@ export const useClickUpData = (token, teamId) => {
     });
   };
 
-  const getSprint55Tasks = async () => {
-    if (!token || !teamId) {
-      throw new Error("ClickUp token and team ID are required");
+  const fetchListTasksAndTeamMembers = async (listId) => {
+    if (!token) {
+      throw new Error("ClickUp token is required");
     }
 
     try {
@@ -178,116 +178,60 @@ export const useClickUpData = (token, teamId) => {
         "Content-Type": "application/json",
       };
 
-      // Step 1: Find the 🧠 Product space
-      const spacesResponse = await fetch(
-        `https://api.clickup.com/api/v2/team/${teamId}/space`,
-        { headers }
-      );
-      if (!spacesResponse.ok) throw new Error("Failed to fetch ClickUp spaces");
-      const spacesData = await spacesResponse.json();
-
-      const productSpace = spacesData.spaces.find(
-        (space) =>
-          space.name.includes("🧠 Product") ||
-          space.name.includes("Product") ||
-          space.name.toLowerCase().includes("product")
-      );
-
-      if (!productSpace) {
-        throw new Error("🧠 Product space not found");
-      }
-
-      console.log("Found Product space:", productSpace.name);
-
-      // Step 2: Get folders from the Product space to find Payroller-1-n
-      const foldersResponse = await fetch(
-        `https://api.clickup.com/api/v2/space/${productSpace.id}/folder`,
-        { headers }
-      );
-      if (!foldersResponse.ok)
-        throw new Error("Failed to fetch folders from Product space");
-      const foldersData = await foldersResponse.json();
-
-      const payrollerFolder = foldersData.folders.find(
-        (folder) =>
-          folder.name.includes("Payroller-1-n") ||
-          folder.name.toLowerCase().includes("payroller")
-      );
-
-      if (!payrollerFolder) {
-        throw new Error("Payroller-1-n folder not found in Product space");
-      }
-
-      console.log("Found Payroller folder:", payrollerFolder.name);
-
-      // Step 3: Get lists from Payroller-1-n folder to find Sprint 55
-      const listsResponse = await fetch(
-        `https://api.clickup.com/api/v2/folder/${payrollerFolder.id}/list`,
-        { headers }
-      );
-      if (!listsResponse.ok)
-        throw new Error("Failed to fetch lists from Payroller folder");
-      const listsData = await listsResponse.json();
-
-      const sprint55List = listsData.lists.find(
-        (list) =>
-          list.name.includes("Sprint 55") ||
-          list.name.toLowerCase().includes("sprint 55")
-      );
-
-      if (!sprint55List) {
-        throw new Error("Sprint 55 list not found in Payroller-1-n folder");
-      }
-
-      console.log("Found Sprint 55 list:", sprint55List.name);
-
-      // Step 4: Get tasks from Sprint 55 list
+      // Fetch tasks from the specified list
       const tasksResponse = await fetch(
-        `https://api.clickup.com/api/v2/list/${sprint55List.id}/task`,
-        { headers }
+        `https://api.clickup.com/api/v2/list/${listId}/task`,
+        {
+          headers,
+          params: {
+            include_closed: true,
+            subtasks: true,
+            assignees: ["all"],
+          },
+        }
       );
-      if (!tasksResponse.ok)
-        throw new Error("Failed to fetch tasks from Sprint 55");
+
+      if (!tasksResponse.ok) {
+        throw new Error(`Failed to fetch tasks from list ${listId}`);
+      }
+
       const tasksData = await tasksResponse.json();
 
-      // Enrich tasks with additional metadata
-      const enrichedTasks = tasksData.tasks.map((task) => ({
-        ...task,
-        space_name: productSpace.name,
-        folder_name: payrollerFolder.name,
-        list_name: sprint55List.name,
-        priority_text: task.priority?.priority || "No Priority",
-        status_text: task.status?.status || "No Status",
-        assignee_names:
-          task.assignees?.map((a) => a.username).join(", ") || "Unassigned",
-        due_date_formatted: task.due_date
-          ? new Date(parseInt(task.due_date)).toLocaleDateString()
-          : "No Due Date",
-        created_date_formatted: new Date(
-          parseInt(task.date_created)
-        ).toLocaleDateString(),
-        url: task.url,
-      }));
+      // Extract unique team members from assignees
+      const teamMembersMap = new Map();
+
+      tasksData.tasks.forEach((task) => {
+        task.assignees?.forEach((assignee) => {
+          if (!teamMembersMap.has(assignee.id)) {
+            teamMembersMap.set(assignee.id, {
+              id: assignee.id,
+              name: assignee.username || assignee.name || "Unknown User",
+              email: assignee.email,
+              color: assignee.color,
+              profilePicture:
+                assignee.profilePicture ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  assignee.username || assignee.name || "U"
+                )}&background=random`,
+              role: "Team Member",
+              githubUsername: assignee.username,
+              source: "clickup",
+              sourceId: assignee.id,
+            });
+          }
+        });
+      });
+
+      const teamMembers = Array.from(teamMembersMap.values());
 
       return {
-        productSpace,
-        payrollerFolder,
-        sprint55List,
-        tasks: enrichedTasks,
-        totalTasks: enrichedTasks.length,
-        tasksByStatus: enrichedTasks.reduce((acc, task) => {
-          const status = task.status_text;
-          acc[status] = (acc[status] || 0) + 1;
-          return acc;
-        }, {}),
-        tasksByPriority: enrichedTasks.reduce((acc, task) => {
-          const priority = task.priority_text;
-          acc[priority] = (acc[priority] || 0) + 1;
-          return acc;
-        }, {}),
+        tasks: tasksData.tasks,
+        teamMembers,
+        totalTasks: tasksData.tasks?.length || 0,
+        listId,
       };
     } catch (error) {
-      console.error("Error fetching Sprint 55 tasks:", error);
+      console.error(`Error fetching tasks from list ${listId}:`, error);
       throw error;
     }
   };
@@ -300,7 +244,7 @@ export const useClickUpData = (token, teamId) => {
     getBlockedTasks,
     getTaskMetrics,
     getBlockedTasksWithDuration,
-    getSprint55Tasks,
+    fetchListTasksAndTeamMembers,
     refresh: fetchClickUpData,
   };
 };

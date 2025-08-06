@@ -1,54 +1,77 @@
 import { useState } from 'react'
-import { sendSlackMessage, generateSlackCurlCommand, generateEmailAlert } from '../utils/corsProxy'
+import { callSlackWebhook } from '../lib/supabase'
 
 export const useSlackWebhook = (webhookUrl) => {
-  const [sending, setSending] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const formatMessage = (message, type) => {
+    switch (type) {
+      case 'blocker':
+        return `🚧 *Blocker Alert* 🚧\n\n` + message
+      case 'kudos':
+        return `🎉 *Kudos* 🎉\n\n` + message
+      case 'burnout':
+        return `🔥 *Burnout Alert* 🔥\n\n` + message
+      case 'follow-up':
+        return `🔄 *Follow-up Reminder* 🔄\n\n` + message
+      default:
+        return message
+    }
+  }
 
-  const sendMessage = async (message, channel = null) => {
+  const getEmojiForType = (type) => {
+    switch (type) {
+      case 'blocker':
+        return ':construction:'
+      case 'kudos':
+        return ':tada:'
+      case 'burnout':
+        return ':fire:'
+      case 'follow-up':
+        return ':clock10:'
+      default:
+        return ':chart_with_upwards_trend:'
+    }
+  }
+
+  const sendMessage = async (message, type = 'info') => {
     if (!webhookUrl) {
-      setError('Slack webhook URL not configured')
+      console.warn('No Slack webhook URL configured')
+      setError('No webhook URL configured')
       return false
     }
 
+    setLoading(true)
+    setError(null)
+    
+    console.log('🔄 Sending Slack message via Supabase:', { message, type, webhookUrl: webhookUrl.substring(0, 50) + '...' })
+
     try {
-      setSending(true)
-      setError(null)
-
-      const fullMessage = channel ? `#${channel}: ${message}` : message
-      const result = await sendSlackMessage(webhookUrl, fullMessage)
+      const result = await callSlackWebhook(formatMessage(message, type), webhookUrl, {
+        username: 'PulseTracker',
+        icon_emoji: getEmojiForType(type)
+      })
       
-
-      setSending(false)
-
+      console.log('📤 Slack message result:', result)
+      
       if (result.success) {
-        console.log('Slack message sent successfully:', result.method)
+        console.log('✅ Slack message sent successfully via Supabase Edge Function')
+        setLoading(false)
         return true
       } else {
-        console.log('Slack message failed:', result)
-        
-        // Handle CORS error with user-friendly message and alternatives
-        if (result.error === 'CORS_BLOCKED') {
-          console.log('CORS error detected, setting error state for modal')
-          const corsError = {
-            type: 'CORS_BLOCKED',
-            message: result.message,
-            suggestions: result.suggestions,
-            curlCommand: generateSlackCurlCommand(webhookUrl, fullMessage),
-            emailLink: generateEmailAlert(fullMessage)
-          }
-          console.log('Setting CORS error:', corsError)
-          setError(corsError)
-        } else {
-          setError(result.message || 'Failed to send Slack message')
-        }
+        console.warn('❌ Slack message failed:', result)
+        setError(result)
+        setLoading(false)
         return false
       }
-    } catch (error) {
-      console.error('Slack webhook error:', error)
-      setError(error.message)
-      setSending(false)
+    } catch (err) {
+      console.error('🚨 Slack webhook error:', err)
+      setError({
+        error: 'NETWORK_ERROR',
+        message: `Network error: ${err.message}`
+      })
+      setLoading(false)
       return false
     }
   }
@@ -108,7 +131,7 @@ export const useSlackWebhook = (webhookUrl) => {
     sendKudosMessage,
     sendBurnoutAlert,
     sendFollowUpMessage,
-    sending,
+    loading,
     error
   }
 }

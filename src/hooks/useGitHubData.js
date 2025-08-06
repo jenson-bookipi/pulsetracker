@@ -42,7 +42,7 @@ export const useGitHubData = (token, repos = []) => {
       // Fetch pull requests for each repo
       const prPromises = repos.map(async (repo) => {
         const response = await fetch(
-          `https://api.github.com/repos/${repo}/pulls?state=all&per_page=100`,
+          `https://api.github.com/repos/jenson-bookipi/${repo}/pulls?state=all&per_page=100`,
           { headers }
         );
         if (!response.ok) throw new Error(`Failed to fetch PRs for ${repo}`);

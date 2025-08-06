@@ -14,12 +14,14 @@ import BlockedTicketList from '../components/BlockedTicketList'
 import TeamHeatmap from '../components/TeamHeatmap'
 import HappinessMeter from '../components/HappinessMeter'
 import CorsErrorModal from '../components/CorsErrorModal'
+import ClickUpTaskList from '../components/ClickUpTaskList'
 
 const TeamDashboard = () => {
   const [settings, setSettings] = useState(null)
   const [showBlockedTickets, setShowBlockedTickets] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [corsError, setCorsError] = useState(null)
+  const [showTaskFilters, setShowTaskFilters] = useState(false)
 
   // Load settings from localStorage
   useEffect(() => {
@@ -257,6 +259,32 @@ const TeamDashboard = () => {
               teamMembers={teamMembers}
             />
           </div>
+
+          {/* Sprint Tasks Section */}
+          {settings?.clickup?.token && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">Sprint Tasks</h2>
+                  <button
+                    onClick={() => setShowTaskFilters(!showTaskFilters)}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    {showTaskFilters ? 'Hide Filters' : 'Show Filters'}
+                  </button>
+                </div>
+                <ClickUpTaskList
+                  listId="901810346214"
+                  token={settings.clickup.token}
+                  title=""
+                  showFilters={showTaskFilters}
+                  autoRefresh={true}
+                  refreshInterval={300000} // 5 minutes
+                  compactView={!showTaskFilters}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Team Members Grid */}
           {teamMembers.length > 0 && (

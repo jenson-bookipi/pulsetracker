@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { AlertTriangle, RefreshCw, Settings } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { AlertTriangle, RefreshCw, Settings, BarChart2, Clock, CheckCircle, AlertCircle, GitPullRequest, GitCommit } from 'lucide-react'
 
 // Import hooks
 import { useGitHubData } from '../hooks/useGitHubData'
 import { useClickUpData } from '../hooks/useClickUpData'
 import { useSlackWebhook } from '../hooks/useSlackWebhook'
 import { useBlockedTickets } from '../hooks/useBlockedTickets'
+import { useTeamMetrics } from '../hooks/useTeamMetrics'
 
 // Import components
 import DeveloperCard from '../components/DeveloperCard'
@@ -15,6 +16,7 @@ import TeamHeatmap from '../components/TeamHeatmap'
 import HappinessMeter from '../components/HappinessMeter'
 import CorsErrorModal from '../components/CorsErrorModal'
 import ClickUpTaskList from '../components/ClickUpTaskList'
+import MetricCard from '../components/MetricCard'
 
 const TeamDashboard = () => {
   const [settings, setSettings] = useState(null)
@@ -25,11 +27,32 @@ const TeamDashboard = () => {
   const [teamMembersFromList, setTeamMembersFromList] = useState([])
   const [isFetchingMembers, setIsFetchingMembers] = useState(false)
 
-  // Initialize hooks at the top level
+  // Initialize hooks
   const githubData = useGitHubData(settings?.github)
   const clickupData = useClickUpData(settings?.clickup?.token, settings?.clickup?.teamId)
   const slackWebhook = useSlackWebhook(settings?.slack?.webhookUrl)
   const blockedTickets = useBlockedTickets(clickupData, slackWebhook)
+  
+  // Memoize the team metrics config to prevent unnecessary re-renders
+  const teamMetricsConfig = useMemo(() => ({
+    clickUpListId: settings?.clickup?.listId || '901810346214',
+    clickUpToken: settings?.clickup?.token,
+    githubOwner: settings?.github?.owner || 'jenson-bookipi',
+    githubRepo: settings?.github?.repo || 'pulsetracker',
+    githubToken: settings?.github?.token || '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',
+    teamMembers: (settings?.team?.members || []).map(m => m.githubUsername || m.name).filter(Boolean),
+    days: 30
+  }), [
+    settings?.clickup?.listId,
+    settings?.clickup?.token,
+    settings?.github?.owner,
+    settings?.github?.repo,
+    settings?.github?.token,
+    settings?.team?.members
+  ]);
+
+  // Initialize the new team metrics hook with memoized config
+  const teamMetrics = useTeamMetrics(teamMetricsConfig)
 
   // Memoize the fetch function
   const fetchTeamMembers = useCallback(async () => {
@@ -86,63 +109,13 @@ const TeamDashboard = () => {
     return () => window.removeEventListener('pulsetracker-settings-updated', handleSettingsUpdate)
   }, [])
 
-  // Get team members - prioritize list members, fall back to settings
-  const teamMembers = teamMembersFromList.length > 0 ? teamMembersFromList : settings?.team?.members || []
-
-  // Calculate burnout and happiness for each team member
-  const burnoutData = {}
-  const happinessData = {}
-  
-  teamMembers.forEach(member => {
-    const memberName = member.githubUsername || member.name
-    const recentActivity = githubData?.getActivityForDateRange?.(memberName, 7) || { commits: 0, pullRequests: 0, totalActivity: 0 }
-    const taskMetrics = clickupData?.getTaskMetrics?.(memberName) || { open: 0, completed: 0, blocked: 0 }
-    
-    // Simple burnout calculation
-    const burnoutScore = Math.min(
-      (taskMetrics.open > 10 ? 30 : taskMetrics.open > 5 ? 15 : 0) +
-      (recentActivity.totalActivity > 15 ? 25 : recentActivity.totalActivity > 10 ? 15 : 0) +
-      (taskMetrics.blocked * 10),
-      100
-    )
-    
-    const burnoutLevel = burnoutScore >= 70 ? 'critical' : 
-                        burnoutScore >= 50 ? 'high' : 
-                        burnoutScore >= 30 ? 'moderate' : 'low'
-    
-    // Simple happiness calculation
-    const happinessScore = Math.max(
-      70 - (burnoutScore * 0.4) + 
-      Math.min((recentActivity.commits * 2) + (recentActivity.pullRequests * 3) + (taskMetrics.completed * 4), 25),
-      0
-    )
-    
-    const happinessLevel = happinessScore >= 80 ? 'very_happy' :
-                          happinessScore >= 65 ? 'happy' :
-                          happinessScore >= 45 ? 'neutral' :
-                          happinessScore >= 30 ? 'concerned' : 'unhappy'
-    
-    burnoutData[memberName] = {
-      score: Math.round(burnoutScore),
-      level: burnoutLevel,
-      factors: [],
-      metrics: { openTasks: taskMetrics.open, recentActivity: recentActivity.totalActivity, blockedTasks: taskMetrics.blocked }
-    }
-    
-    happinessData[memberName] = {
-      score: Math.round(happinessScore),
-      level: happinessLevel,
-      emoji: happinessScore >= 80 ? '😄' : happinessScore >= 65 ? '😊' : happinessScore >= 45 ? '😐' : happinessScore >= 30 ? '😕' : '😞',
-      factors: []
-    }
-  })
-
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
       await Promise.all([
         githubData.refresh?.(),
-        clickupData.refresh?.()
+        clickupData.refresh?.(),
+        teamMetrics.refresh?.()  // Add team metrics refresh
       ])
     } finally {
       setTimeout(() => setRefreshing(false), 1000)
@@ -195,6 +168,57 @@ const TeamDashboard = () => {
     }
   }
 
+  // Get team members - prioritize list members, fall back to settings
+  const teamMembers = teamMembersFromList.length > 0 ? teamMembersFromList : settings?.team?.members || []
+
+  // Calculate burnout and happiness for each team member
+  const burnoutData = {}
+  const happinessData = {}
+  
+  teamMembers.forEach(member => {
+    const memberName = member.githubUsername || member.name
+    const recentActivity = githubData?.getActivityForDateRange?.(memberName, 7) || { commits: 0, pullRequests: 0, totalActivity: 0 }
+    const taskMetrics = clickupData?.getTaskMetrics?.(memberName) || { open: 0, completed: 0, blocked: 0 }
+    
+    // Simple burnout calculation
+    const burnoutScore = Math.min(
+      (taskMetrics.open > 10 ? 30 : taskMetrics.open > 5 ? 15 : 0) +
+      (recentActivity.totalActivity > 15 ? 25 : recentActivity.totalActivity > 10 ? 15 : 0) +
+      (taskMetrics.blocked * 10),
+      100
+    )
+    
+    const burnoutLevel = burnoutScore >= 70 ? 'critical' : 
+                        burnoutScore >= 50 ? 'high' : 
+                        burnoutScore >= 30 ? 'moderate' : 'low'
+    
+    // Simple happiness calculation
+    const happinessScore = Math.max(
+      70 - (burnoutScore * 0.4) + 
+      Math.min((recentActivity.commits * 2) + (recentActivity.pullRequests * 3) + (taskMetrics.completed * 4), 25),
+      0
+    )
+    
+    const happinessLevel = happinessScore >= 80 ? 'very_happy' :
+                          happinessScore >= 65 ? 'happy' :
+                          happinessScore >= 45 ? 'neutral' :
+                          happinessScore >= 30 ? 'concerned' : 'unhappy'
+    
+    burnoutData[memberName] = {
+      score: Math.round(burnoutScore),
+      level: burnoutLevel,
+      factors: [],
+      metrics: { openTasks: taskMetrics.open, recentActivity: recentActivity.totalActivity, blockedTasks: taskMetrics.blocked }
+    }
+    
+    happinessData[memberName] = {
+      score: Math.round(happinessScore),
+      level: happinessLevel,
+      emoji: happinessScore >= 80 ? '😄' : happinessScore >= 65 ? '😊' : happinessScore >= 45 ? '😐' : happinessScore >= 30 ? '😕' : '😞',
+      factors: []
+    }
+  })
+
   // Show setup message if no settings configured
   if (!settings || !settings.github?.token) {
     return (
@@ -216,7 +240,13 @@ const TeamDashboard = () => {
     )
   }
 
-  const isLoading = githubData.loading || clickupData.loading
+  const isLoading = githubData.loading || clickupData.loading || teamMetrics.loading
+  console.log('loaaading', {
+    githubDataLoading: githubData.loading,
+    clickupDataLoading: clickupData.loading,
+    teamMetricsLoading: teamMetrics.loading,
+  })
+  const metrics = teamMetrics.metrics
 
   return (
     <div className="space-y-8">
@@ -248,7 +278,7 @@ const TeamDashboard = () => {
       )}
 
       {/* Error States */}
-      {(githubData.error || clickupData.error) && (
+      {(githubData.error || clickupData.error || teamMetrics.error) && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center text-red-800">
             <AlertTriangle className="h-5 w-5 mr-2" />
@@ -257,12 +287,112 @@ const TeamDashboard = () => {
           <div className="mt-2 text-sm text-red-700">
             {githubData.error && <p>GitHub: {githubData.error}</p>}
             {clickupData.error && <p>ClickUp: {clickupData.error}</p>}
+            {teamMetrics.error && <p>Metrics: {teamMetrics.error}</p>}
           </div>
         </div>
       )}
 
       {!isLoading && (
         <>
+          {/* Team Metrics Overview */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <BarChart2 className="h-5 w-5 mr-2 text-primary-600" />
+              Team Metrics Overview
+            </h2>
+            
+            {/* Health & Productivity Scores */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="text-sm font-medium text-blue-800 mb-1">Team Health</div>
+                <div className="text-3xl font-bold text-blue-600">
+                  {metrics?.scores?.health || 0}%
+                </div>
+                <div className="h-2 bg-blue-100 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 rounded-full" 
+                    style={{ width: `${metrics?.scores?.health || 0}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+                <div className="text-sm font-medium text-green-800 mb-1">Productivity</div>
+                <div className="text-3xl font-bold text-green-600">
+                  {metrics?.scores?.productivity || 0}%
+                </div>
+                <div className="h-2 bg-green-100 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="h-full bg-green-600 rounded-full" 
+                    style={{ width: `${metrics?.scores?.productivity || 0}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                <div className="text-sm font-medium text-purple-800 mb-1">Code Quality</div>
+                <div className="text-3xl font-bold text-purple-600">
+                  {metrics?.scores?.quality || 0}%
+                </div>
+                <div className="h-2 bg-purple-100 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-600 rounded-full" 
+                    style={{ width: `${metrics?.scores?.quality || 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Detailed Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <MetricCard 
+                icon={<CheckCircle className="h-5 w-5 text-green-600" />}
+                title="Tasks Completed"
+                value={metrics?.tasks?.completed || 0}
+                subValue={metrics?.tasks?.total || 0}
+                change={metrics?.tasks?.completed ? 
+                  `${Math.round((metrics.tasks.completed / metrics.tasks.total) * 100)}%` : '0%'}
+                changeType={metrics?.tasks?.completed > (metrics?.tasks?.total * 0.7) ? 'positive' : 'neutral'}
+              />
+              
+              <MetricCard 
+                icon={<GitPullRequest className="h-5 w-5 text-blue-600" />}
+                title="Pull Requests"
+                value={metrics?.code?.pullRequests?.merged || 0}
+                subValue={metrics?.code?.pullRequests?.total || 0}
+                change={
+                  metrics?.code?.pullRequests?.averageTimeToMerge ? 
+                  `${Math.round(metrics.code.pullRequests.averageTimeToMerge)}d` : 'N/A'
+                }
+                changeType={
+                  metrics?.code?.pullRequests?.averageTimeToMerge < 3 ? 'positive' : 
+                  metrics?.code?.pullRequests?.averageTimeToMerge > 7 ? 'negative' : 'neutral'
+                }
+              />
+              
+              <MetricCard 
+                icon={<GitCommit className="h-5 w-5 text-purple-600" />}
+                title="Commits"
+                value={metrics?.code?.commits?.total || 0}
+                change={
+                  metrics?.code?.commits?.byAuthor ? 
+                  `${Object.keys(metrics.code.commits.byAuthor).length} authors` : '0 authors'
+                }
+              />
+              
+              <MetricCard 
+                icon={<AlertCircle className="h-5 w-5 text-red-600" />}
+                title="Blocked Tasks"
+                value={metrics?.tasks?.blocked || 0}
+                change={
+                  metrics?.tasks?.blocked > 0 ? 
+                  `${Math.round((metrics.tasks.blocked / metrics.tasks.total) * 100)}% of total` : '0%'
+                }
+                changeType={metrics?.tasks?.blocked > 0 ? 'negative' : 'positive'}
+              />
+            </div>
+          </div>
+
           {/* Blocker Alert */}
           <BlockerAlert
             blockedTickets={blockedTickets.blockedTickets}
@@ -270,104 +400,29 @@ const TeamDashboard = () => {
             onSendAlert={handleSendBlockerAlert}
           />
 
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Team Happiness */}
-            <HappinessMeter
-              teamMembers={teamMembers}
-              happinessData={happinessData}
-              showIndividual={true}
-            />
-
-            {/* Team Activity Heatmap */}
-            <TeamHeatmap
-              githubData={githubData}
-              clickupData={clickupData}
-              teamMembers={teamMembers}
-            />
-          </div>
-
-          {/* Sprint Tasks Section */}
-          {/* {settings?.clickup?.token && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900">Sprint Tasks</h2>
-                  <button
-                    onClick={() => setShowTaskFilters(!showTaskFilters)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-                  >
-                    {showTaskFilters ? 'Hide Filters' : 'Show Filters'}
-                  </button>
-                </div>
-                <ClickUpTaskList
-                  listId="901810346214"
-                  token={settings.clickup.token}
-                  title=""
-                  showFilters={showTaskFilters}
-                  autoRefresh={true}
-                  refreshInterval={300000} // 5 minutes
-                  compactView={!showTaskFilters}
-                />
-              </div>
-            </div>
-          )} */}
-
           {/* Team Members Grid */}
-          {teamMembers.length > 0 && (
+          {teamMembersFromList.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Team Members</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {teamMembers.map((member) => {
-                  const memberName = member.githubUsername || member.name
+                {teamMembersFromList.map((member) => {
+                  const memberName = member.githubUsername || member.name;
+                  const memberMetrics = metrics?.teamMembers?.find(m => m.username === memberName);
+                  
                   return (
                     <DeveloperCard
                       key={member.id}
-                      developer={{ ...member, name: memberName }}
+                      developer={member}
                       githubData={githubData}
                       clickupData={clickupData}
-                      burnoutData={burnoutData[memberName]}
-                      happinessData={happinessData[memberName]}
+                      metrics={memberMetrics}
                       onSendAlert={() => handleSendBurnoutAlert(member)}
                     />
-                  )
+                  );
                 })}
               </div>
             </div>
           )}
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="metric-card text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {teamMembers.length}
-              </div>
-              <div className="text-sm text-gray-500">Team Members</div>
-            </div>
-            
-            <div className="metric-card text-center">
-              <div className="text-2xl font-bold text-primary-600">
-                {githubData.commits?.length || 0}
-              </div>
-              <div className="text-sm text-gray-500">Total Commits</div>
-            </div>
-            
-            <div className="metric-card text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {clickupData.tasks?.filter(t => 
-                  t.status?.status === 'complete' || t.status?.status === 'closed'
-                ).length || 0}
-              </div>
-              <div className="text-sm text-gray-500">Completed Tasks</div>
-            </div>
-            
-            <div className="metric-card text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {blockedTickets.blockedTickets?.length || 0}
-              </div>
-              <div className="text-sm text-gray-500">Blocked Tasks</div>
-            </div>
-          </div>
         </>
       )}
 
@@ -404,4 +459,4 @@ const TeamDashboard = () => {
   )
 }
 
-export default TeamDashboard
+export default TeamDashboard;

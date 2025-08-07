@@ -18,13 +18,14 @@ import { calculatePRMetrics, calculateCommitMetrics } from "./githubService";
 export const calculateTeamProductivity = (params, options = {}) => {
   const { tasks = [], pullRequests = [], commits = [] } = params;
   const { days = 30 } = options;
-
   // Calculate ClickUp metrics
   const velocityMetrics = calculateVelocity(tasks, days);
   const blockerMetrics = calculateBlockerMetrics(tasks);
 
   // Calculate GitHub metrics
   const prMetrics = calculatePRMetrics(pullRequests);
+  console.log("prMetrics", prMetrics);
+
   const commitMetrics = calculateCommitMetrics(commits);
 
   // Calculate team member metrics

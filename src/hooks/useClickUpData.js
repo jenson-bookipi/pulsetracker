@@ -85,20 +85,52 @@ export const useClickUpData = (token, teamId) => {
   const getCompletedTasks = (userId, days = 7) => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    console.log("userId", getTasksByAssignee(userId));
-    return getTasksByAssignee(userId).filter(
-      (task) =>
-        task.status?.status === "completed" ||
-        task.status?.status === "deployed"
-    );
+
+    return getTasksByAssignee(userId).filter((task) => {
+      if (!task.status?.status) return false;
+
+      const status = task.status.status.toLowerCase();
+      const isCompleted = [
+        "completed",
+        "done",
+        "closed",
+        "deployed",
+        "finished",
+        "accepted",
+      ].includes(status);
+
+      const taskDate = task.date_closed || task.date_updated;
+      const isWithinTimeframe =
+        taskDate && new Date(parseInt(taskDate)) >= cutoff;
+
+      // Debug log for completed tasks
+      if (isCompleted) {
+        console.log("Completed task in getCompletedTasks:", {
+          name: task.name,
+          status: task.status.status,
+          date: taskDate ? new Date(parseInt(taskDate)) : "No date",
+          isWithinTimeframe,
+        });
+      }
+
+      return isCompleted && isWithinTimeframe;
+    });
   };
 
   const getOpenTasks = (userId) => {
-    return getTasksByAssignee(userId).filter(
-      (task) =>
-        task.status?.status !== "completed" &&
-        task.status?.status !== "deployed"
-    );
+    return getTasksByAssignee(userId).filter((task) => {
+      if (!task.status?.status) return true; // Treat tasks with no status as open
+
+      const status = task.status.status.toLowerCase();
+      return ![
+        "completed",
+        "done",
+        "closed",
+        "deployed",
+        "finished",
+        "accepted",
+      ].includes(status);
+    });
   };
 
   const getBlockedTasks = (userId = null) => {

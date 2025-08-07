@@ -246,22 +246,6 @@ const calculateTeamMemberMetrics = ({
         tasks || []
       );
 
-      if (isExplicitlyBlocked || hasBlockingDependencies) {
-        console.log(`Task ${task.id} (${task.name}) is blocked:`, {
-          status: task.status?.status,
-          isExplicitlyBlocked,
-          hasBlockingDependencies,
-          dependencies: task.dependencies?.map((dep) => ({
-            id: typeof dep === "object" ? dep.task_id || dep.depends_on : dep,
-            status: (tasks || []).find(
-              (t) =>
-                t.id ===
-                (typeof dep === "object" ? dep.task_id || dep.depends_on : dep)
-            )?.status?.status,
-          })),
-        });
-      }
-
       return isExplicitlyBlocked || hasBlockingDependencies || hasDependencies;
     });
 

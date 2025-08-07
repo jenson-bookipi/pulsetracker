@@ -7,6 +7,7 @@ import { useClickUpData } from '../hooks/useClickUpData'
 import { useSlackWebhook } from '../hooks/useSlackWebhook'
 import { useBlockedTickets } from '../hooks/useBlockedTickets'
 import { useTeamMetrics } from '../hooks/useTeamMetrics'
+import { useTeamHealthAlert } from '../hooks/useTeamHealthAlert'
 
 // Import components
 import DeveloperCard from '../components/DeveloperCard'
@@ -219,6 +220,42 @@ const TeamDashboard = () => {
     }
   })
 
+  // Calculate team health score (0-100) based on Team Metrics Overview
+  const metrics = teamMetrics.metrics
+  const teamHealthScore = useMemo(() => {
+    if (!metrics?.scores) return 100; // Default to healthy if no metrics
+    
+    // Get base scores from metrics
+    const {
+      health = 100,
+      productivity = 100,
+      quality = 100,
+      velocity = 100
+    } = metrics.scores;
+    
+    // Calculate weighted average with emphasis on health and productivity
+    const calculatedScore = Math.round(
+      (health * 0.4) + 
+      (productivity * 0.3) + 
+      (quality * 0.2) + 
+      (velocity * 0.1)
+    );
+    
+    // Ensure score is within bounds
+    return Math.max(0, Math.min(100, calculatedScore));
+  }, [metrics?.scores]);
+
+  console.log('Team Health Score:', teamHealthScore, 'Metrics:', metrics?.scores);
+  // Initialize team health alert
+  useTeamHealthAlert(
+    { healthScore: teamHealthScore },
+    90, // Alert threshold (50%)
+    { 
+      enabled: true,
+      channel: settings?.slack?.alertChannel || '#hackathon-pulsetracker'
+    }
+  );
+
   // Show setup message if no settings configured
   if (!settings || !settings.github?.token) {
     return (
@@ -241,7 +278,6 @@ const TeamDashboard = () => {
   }
 
   const isLoading = githubData.loading || clickupData.loading || teamMetrics.loading
-  const metrics = teamMetrics.metrics
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -296,6 +332,29 @@ const TeamDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Health Score Banner */}
+      <div className="health-score-banner" style={{
+        backgroundColor: teamHealthScore < 50 ? '#ffebee' : teamHealthScore < 70 ? '#fff8e1' : '#e8f5e9',
+        padding: '10px',
+        marginBottom: '20px',
+        borderRadius: '4px',
+        textAlign: 'center',
+        borderLeft: `5px solid ${
+          teamHealthScore < 50 ? '#f44336' : teamHealthScore < 70 ? '#ffc107' : '#4caf50'
+        }`
+      }}>
+        <h3>Team Health Score: <strong>{teamHealthScore}%</strong></h3>
+        {teamHealthScore < 50 && (
+          <p>⚠️ <strong>Critical:</strong> Immediate attention required to address team health issues.</p>
+        )}
+        {teamHealthScore >= 50 && teamHealthScore < 70 && (
+          <p>⚠️ <strong>Warning:</strong> Monitor team health closely and consider interventions.</p>
+        )}
+        {teamHealthScore >= 70 && (
+          <p>✅ <strong>Good:</strong> Team health is in a good state.</p>
+        )}
+      </div>
 
       {!isLoading && (
         <>

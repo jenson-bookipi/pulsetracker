@@ -103,7 +103,6 @@ export const calculateVelocity = (tasks, days = 14) => {
 
   // Debug: Log all unique statuses in the tasks
   const allStatuses = [...new Set(tasks.map((t) => t.status?.status))];
-  console.log("All task statuses:", allStatuses);
 
   const completedTasks = tasks.filter((task) => {
     if (!task.status?.status) return false;
@@ -122,24 +121,10 @@ export const calculateVelocity = (tasks, days = 14) => {
     const isWithinTimeframe =
       taskDate && new Date(parseInt(taskDate)) >= cutoffDate;
     if (isCompleted) {
-      console.log("Completed task:", {
-        name: task.name,
-        status: task.status.status,
-        date: taskDate ? new Date(parseInt(taskDate)) : "No date",
-        points: task.points || 0,
-        isWithinTimeframe,
-      });
     }
     // && isWithinTimeframe
     return isCompleted;
   });
-
-  console.log("completedTaskscompletedTasks", completedTasks);
-
-  console.log(
-    `Found ${completedTasks.length} completed tasks in the last ${days} days`
-  );
-  console.log("Sample completed task:", completedTasks[0]);
 
   const totalPoints = completedTasks.reduce((sum, task) => {
     const points = parseInt(task.points) || 1; // Default to 1 point if not specified

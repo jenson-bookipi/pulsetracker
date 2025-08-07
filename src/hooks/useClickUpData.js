@@ -74,7 +74,6 @@ export const useClickUpData = (token, teamId) => {
   }, [token, teamId]);
 
   const getTasksByAssignee = (userId) => {
-    console.log("data.tasks", data);
     return data.tasks.filter((task) =>
       task.assignees?.some(
         (assignee) => assignee.id === userId || assignee.username === userId
@@ -164,7 +163,6 @@ export const useClickUpData = (token, teamId) => {
     const completedTasks = getCompletedTasks(userId);
     const openTasks = getOpenTasks(userId);
     const blockedTasks = getBlockedTasks(userId);
-    console.log("completedTaskscompletedTasks", completedTasks);
     return {
       total: userTasks.length,
       completed: completedTasks.length,

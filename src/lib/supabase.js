@@ -23,15 +23,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const callSlackWebhook = async (text, webhookUrl, options = {}) => {
   console.log("🔄 Calling Supabase Edge Function:", {
     url: supabaseUrl,
-    text: text.substring(0, 50) + "...",
-    webhookUrl: webhookUrl.substring(0, 50) + "...",
+    text:
+      text && typeof text === "string"
+        ? text.substring(0, 50) + "..."
+        : "[No text or invalid format]",
+    webhookUrl: webhookUrl
+      ? webhookUrl.substring(0, 50) + "..."
+      : "[No webhook URL]",
   });
 
   try {
+    // Ensure text is a string
+    const messageText =
+      text && typeof text === "string" ? text : JSON.stringify(text);
+
     // Try the Supabase client method first
     const { data, error } = await supabase.functions.invoke("slack-webhook", {
       body: {
-        text,
+        text: messageText,
         webhookUrl,
         channel: options.channel,
         username: options.username || "PulseTracker",

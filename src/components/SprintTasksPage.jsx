@@ -60,7 +60,7 @@ const SprintTasksPage = () => {
 
         {/* ClickUp Task List Component */}
         <ClickUpTaskList
-          listId="901810346214"
+          listId="901810346248"
           token={settings.clickup.token}
           title="Sprint Board Tasks"
           showFilters={true}
@@ -74,12 +74,12 @@ const SprintTasksPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="font-medium text-gray-700">List ID:</span>
-              <span className="ml-2 text-gray-600">901810346214</span>
+              <span className="ml-2 text-gray-600">901810346248</span>
             </div>
             <div>
               <span className="font-medium text-gray-700">Source URL:</span>
               <a 
-                href="https://app.clickup.com/6912544/v/l/li/901810346214?pr=90030340817"
+                href="https://app.clickup.com/6912544/v/l/li/901810346248?pr=90030340817"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-2 text-blue-600 hover:text-blue-800 underline"

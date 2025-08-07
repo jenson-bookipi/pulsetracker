@@ -195,10 +195,11 @@ export const calculatePRMetrics = (pullRequests) => {
     };
   });
 
-  const mergedPRs = prsWithTimes.filter((pr) => pr.merged);
+  // Fix: Check merged_at field instead of merged property
+  const mergedPRs = prsWithTimes.filter((pr) => pr.merged_at !== null);
   const openPRs = prsWithTimes.filter((pr) => pr.state === "open");
   const closedPRs = prsWithTimes.filter(
-    (pr) => pr.state === "closed" && !pr.merged
+    (pr) => pr.state === "closed" && pr.merged_at === null
   );
 
   // Group by author
@@ -217,8 +218,8 @@ export const calculatePRMetrics = (pullRequests) => {
 
     acc[author].total += 1;
     if (pr.state === "open") acc[author].open += 1;
-    if (pr.merged) acc[author].merged += 1;
-    if (pr.state === "closed" && !pr.merged) acc[author].closed += 1;
+    if (pr.merged_at !== null) acc[author].merged += 1;
+    if (pr.state === "closed" && pr.merged_at === null) acc[author].closed += 1;
 
     return acc;
   }, {});
@@ -226,7 +227,7 @@ export const calculatePRMetrics = (pullRequests) => {
   // Calculate averages for each author
   Object.keys(byAuthor).forEach((author) => {
     const authorPRs = prsWithTimes.filter((pr) => pr.user?.login === author);
-    const mergedPRs = authorPRs.filter((pr) => pr.merged);
+    const mergedPRs = authorPRs.filter((pr) => pr.merged_at !== null);
     const reviewedPRs = authorPRs.filter((pr) => pr.timeToFirstReview !== null);
 
     byAuthor[author].averageTimeToMerge =

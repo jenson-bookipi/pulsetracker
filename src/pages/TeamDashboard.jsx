@@ -23,14 +23,28 @@ const TeamDashboard = () => {
   const [showBlockedTickets, setShowBlockedTickets] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [corsError, setCorsError] = useState(null)
-  const [showTaskFilters, setShowTaskFilters] = useState(false)
+
   const [teamMembersFromList, setTeamMembersFromList] = useState([])
-  const [isFetchingMembers, setIsFetchingMembers] = useState(false)
 
   // Initialize hooks
+  console.log('🔍 TeamDashboard ClickUp settings:', {
+    hasToken: !!settings?.clickup?.token,
+    token: settings?.clickup?.token ? settings.clickup.token.substring(0, 20) + '...' : 'none',
+    teamId: settings?.clickup?.teamId,
+    listId: settings?.clickup?.listId
+  });
+  
   const githubData = useGitHubData(settings?.github)
   const clickupData = useClickUpData(settings?.clickup?.token, settings?.clickup?.teamId)
   const slackWebhook = useSlackWebhook(settings?.slack?.webhookUrl)
+  
+  console.log('📋 TeamDashboard clickupData result:', {
+    hasData: !!clickupData,
+    loading: clickupData?.loading,
+    error: clickupData?.error,
+    tasksCount: clickupData?.tasks?.length || 0,
+    spacesCount: clickupData?.spaces?.length || 0
+  });
   const blockedTickets = useBlockedTickets(clickupData, slackWebhook)
   
   // Memoize the team metrics config to prevent unnecessary re-renders
@@ -56,34 +70,21 @@ const TeamDashboard = () => {
 
   // Memoize the fetch function
   const fetchTeamMembers = useCallback(async () => {
-    if (!clickupData?.fetchListTasksAndTeamMembers || isFetchingMembers) return;
+    if (!clickupData?.users) return
     
-    setIsFetchingMembers(true);
+    const members = clickupData.users.map(user => ({
+      name: user.username || user.email,
+      email: user.email,
+      clickupId: user.id
+    }))
     
-    try {
-      const LIST_ID = '901810346248';
-      const result = await clickupData.fetchListTasksAndTeamMembers(LIST_ID);
-      setTeamMembersFromList(prevMembers => {
-        // Only update if we have new members to prevent unnecessary re-renders
-        const newMembers = result.teamMembers || [];
-        if (JSON.stringify(prevMembers) !== JSON.stringify(newMembers)) {
-          return newMembers;
-        }
-        return prevMembers;
-      });
-    } catch (error) {
-      console.error('Error fetching team members from ClickUp list:', error);
-    } finally {
-      setIsFetchingMembers(false);
-    }
-  }, [clickupData?.fetchListTasksAndTeamMembers, isFetchingMembers]);
+    setTeamMembersFromList(members)
+  }, [clickupData])
 
   // Initial fetch when component mounts and when settings are loaded
   useEffect(() => {
-    if (settings) {
-      fetchTeamMembers();
-    }
-  }, [settings]);
+    fetchTeamMembers()
+  }, [fetchTeamMembers])
 
   // Load settings from localStorage
   useEffect(() => {
@@ -527,21 +528,17 @@ const TeamDashboard = () => {
           />
 
           {/* Team Members Grid */}
-          {teamMembersFromList.length > 0 && (
+          {teamMembers.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Team Members</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {teamMembersFromList.map((member) => {
-                  const memberName = member.githubUsername || member.name;
-                  const memberMetrics = metrics?.teamMembers?.find(m => m.username === memberName);
-                  
+                {teamMembers.map((member) => {
                   return (
                     <DeveloperCard
                       key={member.id}
                       developer={member}
-                      githubData={githubData}
-                      clickupData={clickupData}
-                      metrics={memberMetrics}
+                      githubData={teamMetrics}
+                      clickupData={teamMetrics}
                       onSendAlert={() => handleSendBurnoutAlert(member)}
                     />
                   );

@@ -1,41 +1,458 @@
 import { AlertTriangle, GitCommit, GitPullRequest, CheckCircle, Clock, Users, MessageSquare, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts'
 
-const DeveloperCard = ({ 
-  developer, 
-  githubData, 
-  clickupData, 
-  burnoutData, 
-  happinessData,
-  onSendAlert 
+const DeveloperCard = ({
+  developer,
+  githubData,
+  clickupData
 }) => {
   if (!developer) return null
 
-  const recentActivity = githubData?.getActivityForDateRange?.(developer.name, 7) || { commits: 0, pullRequests: 0 }
-  const taskMetrics = clickupData?.getTaskMetrics?.(developer.name) || { completed: 0, open: 0, blocked: 0 }
-  
-  // Calculate SPS (Satisfaction/Performance Score)
-  const spsScore = Math.round((happinessData?.score || 50) * 0.6 + (100 - (burnoutData?.score || 0)) * 0.4)
-  
-  // Prepare radar chart data
-  const radarData = [
-    { metric: 'Commits', value: Math.min(recentActivity.commits * 10, 100), fullMark: 100 },
-    { metric: 'PRs', value: Math.min(recentActivity.pullRequests * 20, 100), fullMark: 100 },
-    { metric: 'Tasks', value: Math.min(taskMetrics.completed * 8, 100), fullMark: 100 },
-    { metric: 'Reviews', value: Math.min((recentActivity.reviews || 0) * 15, 100), fullMark: 100 },
-    { metric: 'Meetings', value: Math.min((developer.meetings || 0) * 25, 100), fullMark: 100 }
-  ]
-  
-  // Calculate last activity time
-  const getLastActivity = () => {
-    const lastCommit = githubData?.getLastActivity?.(developer.name)
-    if (lastCommit) {
-      const hours = Math.floor((Date.now() - new Date(lastCommit).getTime()) / (1000 * 60 * 60))
-      if (hours < 1) return 'Active now'
-      if (hours < 24) return `${hours}h ago`
-      return `${Math.floor(hours / 24)}d ago`
+  // Map display names to actual GitHub usernames
+  const githubUsernameMap = {
+    'Heejai Kim': 'heejai-bookipi',
+    'Jenson Miralles': 'jenson-bookipi'
+  };
+
+  // ClickUp user ID mapping for task filtering
+  const clickUpUserIdMap = {
+    'Heejai Kim': 66811314,
+    'Jenson Miralles': 54741331
+  };
+
+  // Parse GitHub activity data
+  const parseGitHubActivity = () => {
+    if (!githubData || !githubData.pullRequests || !githubData.commits) {
+      return { commits: 0, pullRequests: 0, reviews: 0 };
     }
-    return '2 hours ago' // fallback
+
+    const memberName = githubUsernameMap[developer.name] || developer.githubUsername || developer.name;
+    const prs = githubData.pullRequests || [];
+    const commits = githubData.commits || [];
+    
+    // Count PRs by this member in the last 7 days
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentPRs = prs.filter(pr => {
+      const prDate = new Date(pr.created_at);
+      const matches = pr.user?.login === memberName;
+      return matches && prDate >= weekAgo;
+    });
+
+    // Count commits by this member in the last 7 days
+    const recentCommits = commits.filter(commit => {
+      const commitDate = new Date(commit.commit?.author?.date || commit.commit?.committer?.date);
+      const authorMatches = commit.author?.login === memberName;
+      const nameMatches = commit.commit?.author?.name === memberName;
+      const matches = authorMatches || nameMatches;
+      return matches && commitDate >= weekAgo;
+    });
+
+    return {
+      commits: recentCommits.length,
+      pullRequests: recentPRs.length
+    };
+  };
+
+  // Parse ClickUp task data
+  const parseClickUpTasks = () => {
+    if (!clickupData || !clickupData.tasks) {
+      return { completed: 0, open: 0, blocked: 0, total: 0 };
+    }
+
+    const memberName = developer.name;
+    const tasks = clickupData.tasks || [];
+
+    // Filter tasks assigned to this member using ID-based matching
+    const memberTasks = tasks.filter(task => {
+      const assignees = task.assignees || [];
+      const memberClickUpId = clickUpUserIdMap[memberName];
+      
+      // If we have a valid ClickUp ID, use ID-based matching only
+      if (memberClickUpId) {
+        return assignees.some(assignee => assignee.id === memberClickUpId);
+      }
+      
+      // Fallback to username matching only if no ID available
+      return assignees.some(assignee => 
+        assignee.username === memberName || 
+        assignee.name === memberName ||
+        assignee.email === developer.email
+      );
+    });
+    
+    // Count tasks by status
+    const completed = memberTasks.filter(task => {
+      const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+      return status.toLowerCase().includes('complete') || status.toLowerCase().includes('done') || status.toLowerCase().includes('closed');
+    }).length;
+
+    const blocked = memberTasks.filter(task => {
+      const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+      return status.toLowerCase().includes('block') || status.toLowerCase().includes('stuck');
+    }).length;
+
+    const open = memberTasks.length - completed;
+
+    return { completed, open, blocked, total: memberTasks.length };
+  };
+
+  const recentActivity = parseGitHubActivity();
+  const taskMetrics = parseClickUpTasks();
+  
+  // Calculate Smart Productivity Score (SPS) using weighted metrics
+  const calculateSPS = () => {
+    const weights = {
+      commits: 0.35,    // Git commits weight (increased)
+      prs: 0.35,        // PRs merged weight (increased)
+      tasks: 0.30       // Tasks completed weight
+    };
+    
+    // Normalize metrics to 0-100 scale
+    const commitScore = Math.min(recentActivity.commits * 8, 100);
+    const prScore = Math.min(recentActivity.pullRequests * 15, 100);
+    const taskScore = Math.min(taskMetrics.completed * 10, 100);
+    
+    const sps = Math.round(
+      commitScore * weights.commits +
+      prScore * weights.prs +
+      taskScore * weights.tasks
+    );
+    
+    return sps;
+  };
+  
+  // Calculate individual happiness scores for all team members
+  const calculateAllMemberHappiness = () => {
+    if (!clickupData?.tasks) {
+      return { memberScores: [], teamAverage: 50 };
+    }
+    
+    const teamMembers = ['Heejai Kim', 'Jenson Miralles'];
+    const memberScores = [];
+    
+    teamMembers.forEach(memberName => {
+      // Get tasks for this member using ID-based matching
+      const memberTasks = (clickupData.tasks || []).filter(task => {
+        const assignees = task.assignees || [];
+        const memberClickUpId = clickUpUserIdMap[memberName];
+        
+        // If we have a valid ClickUp ID, use ID-based matching only
+        if (memberClickUpId) {
+          return assignees.some(assignee => assignee.id === memberClickUpId);
+        }
+        
+        // Fallback to username matching only if no ID available
+        return assignees.some(assignee => {
+          const usernameExactMatch = assignee.username === memberName;
+          const usernameContainsName = assignee.username?.includes(memberName);
+          const emailMatch = assignee.email?.includes(memberName.toLowerCase().replace(' ', '.'));
+          return usernameExactMatch || usernameContainsName || emailMatch;
+        });
+      });
+      
+      const totalTasks = memberTasks.length;
+      const completedTasks = memberTasks.filter(task => {
+        const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+        return status.toLowerCase().includes('complete') || status.toLowerCase().includes('done');
+      }).length;
+      const openTasks = memberTasks.filter(task => {
+        const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+        return status.toLowerCase().includes('progress') || status.toLowerCase().includes('doing') || status.toLowerCase().includes('active');
+      }).length;
+      const blockedTasks = memberTasks.filter(task => {
+        const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+        return status.toLowerCase().includes('block') || status.toLowerCase().includes('stuck');
+      }).length;
+      
+      // Calculate raw happiness score (0-100)
+      let happiness = 50; // Default baseline
+      
+      if (totalTasks > 0) {
+        const completionRatio = completedTasks / totalTasks;
+        const blockedRatio = blockedTasks / totalTasks;
+        const openRatio = openTasks / totalTasks;
+        
+        // Base score from completion ratio (0-60 points)
+        const completionScore = completionRatio * 60;
+        
+        // Penalty for open tasks (0-25 points penalty)
+        const openPenalty = openRatio * 25;
+        
+        // Penalty for blocked tasks (0-40 points penalty)
+        const blockedPenalty = blockedRatio * 40;
+        
+        happiness = Math.max(0, Math.min(100, 
+          50 + completionScore - openPenalty - blockedPenalty
+        ));
+      }
+      
+      memberScores.push({ name: memberName, score: Math.round(happiness) });
+    });
+    
+    // Calculate team average
+    const teamAverage = memberScores.reduce((sum, member) => sum + member.score, 0) / memberScores.length;
+    
+    return { memberScores, teamAverage: Math.round(teamAverage) };
+  };
+  
+  // Calculate Happiness Factor and team average difference
+  const calculateHappiness = () => {
+    const { memberScores, teamAverage } = calculateAllMemberHappiness();
+    
+    // Find this member's score
+    const currentMemberScore = memberScores.find(member => 
+      member.name === developer.name
+    )?.score || 50;
+    
+    return {
+      score: currentMemberScore,
+      teamAverage: teamAverage,
+      difference: currentMemberScore - teamAverage
+    };
+  };
+  
+  // Calculate burnout based on workload balance and task completion efficiency
+  const calculateBurnout = () => {
+    const totalTasks = taskMetrics.total;
+    const completedTasks = taskMetrics.completed;
+    const openTasks = taskMetrics.open;
+    const blockedTasks = taskMetrics.blocked;
+    const recentCommits = recentActivity.commits;
+    
+    if (totalTasks === 0) return { score: 20, level: 'low' }; // Default low burnout if no tasks
+    
+    // Workload pressure (0-40 points)
+    const taskRatio = openTasks / totalTasks;
+    const workloadPressure = Math.round(taskRatio * 40); // High open task ratio = more pressure
+    
+    // Task completion efficiency (0-30 points, inverse)
+    const completionRatio = completedTasks / totalTasks;
+    const inefficiencyScore = Math.round((1 - completionRatio) * 30); // Low completion = higher burnout
+    
+    // Blocked tasks stress (0-20 points)
+    const blockedStress = Math.round((blockedTasks / totalTasks) * 20);
+    
+    // Activity overload (0-10 points) - too many commits can indicate overwork
+    const activityOverload = recentCommits > 15 ? 10 : recentCommits > 10 ? 5 : 0;
+    
+    // Total burnout score (max 100)
+    const burnout = Math.min(100, workloadPressure + inefficiencyScore + blockedStress + activityOverload);
+    
+    const level = burnout > 60 ? 'high' : burnout > 35 ? 'medium' : 'low';
+    
+    return { score: burnout, level };
+  };
+  
+  const spsScore = calculateSPS();
+  const happinessData = calculateHappiness();
+  const burnoutData = calculateBurnout();
+  
+  // Dynamic color functions based on percentage
+  const getSPSColor = (score) => {
+    if (score >= 70) return 'text-green-500';
+    if (score >= 50) return 'text-blue-500';
+    if (score >= 30) return 'text-yellow-500';
+    return 'text-red-500';
+  };
+  
+  const getSPSGradient = (score) => {
+    if (score >= 70) return 'bg-gradient-to-r from-green-400 to-green-500';
+    if (score >= 50) return 'bg-gradient-to-r from-blue-400 to-blue-500';
+    if (score >= 30) return 'bg-gradient-to-r from-yellow-400 to-yellow-500';
+    return 'bg-gradient-to-r from-red-400 to-red-500';
+  };
+  
+  const getRadarColor = (score) => {
+    if (score >= 70) return { stroke: '#10B981', fill: '#10B981' }; // green
+    if (score >= 50) return { stroke: '#3B82F6', fill: '#3B82F6' }; // blue
+    if (score >= 30) return { stroke: '#F59E0B', fill: '#F59E0B' }; // yellow
+    return { stroke: '#EF4444', fill: '#EF4444' }; // red
+  };
+  
+  const radarColors = getRadarColor(spsScore);
+  
+  // Calculate team averages for relative radar chart
+  const calculateTeamAverages = () => {
+    if (!clickupData?.tasks || !githubData?.commits || !githubData?.pullRequests) {
+      return { avgCommits: 1, avgPRs: 1, avgTasks: 1 }; // fallback
+    }
+    
+    // Get all team members from the parent component or calculate from data
+    const teamMembers = ['Heejai Kim', 'Jenson Miralles']; // TODO: make this dynamic
+    
+    let totalCommits = 0, totalPRs = 0, totalTasks = 0;
+    
+    teamMembers.forEach(memberName => {
+      const memberGithubName = githubUsernameMap[memberName] || memberName;
+      
+      // Count commits for this member
+      const memberCommits = (githubData.commits || []).filter(commit => 
+        commit.author?.login === memberGithubName || commit.commit?.author?.name === memberName
+      );
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const recentCommits = memberCommits.filter(commit => {
+        const commitDate = new Date(commit.commit?.author?.date || commit.commit?.committer?.date);
+        return commitDate >= weekAgo;
+      });
+      
+      // Count PRs for this member
+      const memberPRs = (githubData.pullRequests || []).filter(pr => {
+        const prDate = new Date(pr.created_at);
+        return pr.user?.login === memberGithubName && prDate >= weekAgo;
+      });
+      
+      // Count completed tasks for this member using ID-based matching
+      const memberTasks = (clickupData.tasks || []).filter(task => {
+        const assignees = task.assignees || [];
+        const memberClickUpId = clickUpUserIdMap[memberName];
+        
+        // If we have a valid ClickUp ID, use ID-based matching only
+        if (memberClickUpId) {
+          return assignees.some(assignee => assignee.id === memberClickUpId);
+        }
+        
+        // Fallback to username matching only if no ID available
+        return assignees.some(assignee => {
+          const usernameExactMatch = assignee.username === memberName;
+          const usernameContainsName = assignee.username?.includes(memberName);
+          const emailMatch = assignee.email?.includes(memberName.toLowerCase().replace(' ', '.'));
+          return usernameExactMatch || usernameContainsName || emailMatch;
+        });
+      });
+      const completedTasks = memberTasks.filter(task => {
+        const status = typeof task.status === 'string' ? task.status : task.status?.status || task.status?.name || '';
+        return status.toLowerCase().includes('complete') || status.toLowerCase().includes('done');
+      });
+      
+      totalCommits += recentCommits.length;
+      totalPRs += memberPRs.length;
+      totalTasks += completedTasks.length;
+    });
+    
+    const avgCommits = totalCommits / teamMembers.length;
+    const avgPRs = totalPRs / teamMembers.length;
+    const avgTasks = totalTasks / teamMembers.length;
+    
+    return { avgCommits, avgPRs, avgTasks };
+  };
+  
+  // Calculate relative values based on team average (average = 50%)
+  const { avgCommits, avgPRs, avgTasks } = calculateTeamAverages();
+  
+  const calculateRelativeValue = (individualValue, teamAverage) => {
+    if (teamAverage === 0) return individualValue > 0 ? 100 : 50;
+    
+    // Team average = 50%, scale individual values relative to average
+    const ratio = individualValue / teamAverage;
+    const relativeValue = 50 * ratio;
+    
+    // Cap at reasonable bounds (0-100)
+    return Math.max(0, Math.min(100, Math.round(relativeValue)));
+  };
+  
+  // Prepare radar chart data with team-relative values
+  const radarData = [
+    { 
+      metric: 'Commits', 
+      value: calculateRelativeValue(recentActivity.commits, avgCommits),
+      fullMark: 100,
+      individual: recentActivity.commits,
+      teamAvg: avgCommits.toFixed(1)
+    },
+    { 
+      metric: 'PRs', 
+      value: calculateRelativeValue(recentActivity.pullRequests, avgPRs),
+      fullMark: 100,
+      individual: recentActivity.pullRequests,
+      teamAvg: avgPRs.toFixed(1)
+    },
+    { 
+      metric: 'Tasks', 
+      value: calculateRelativeValue(taskMetrics.completed, avgTasks),
+      fullMark: 100,
+      individual: taskMetrics.completed,
+      teamAvg: avgTasks.toFixed(1)
+    }
+  ];
+  
+  // Calculate last activity time from both GitHub and ClickUp
+  const getLastActivity = () => {
+    const now = Date.now();
+    let lastActivityTime = 0;
+    
+    // Check GitHub activity (commits and PRs)
+    if (githubData?.commits) {
+      const memberName = githubUsernameMap[developer.name] || developer.githubUsername || developer.name;
+      
+      // Find most recent commit by this member
+      const memberCommits = githubData.commits.filter(commit => 
+        commit.author?.login === memberName || commit.commit?.author?.name === developer.name
+      );
+      
+      if (memberCommits.length > 0) {
+        const latestCommit = memberCommits.reduce((latest, commit) => {
+          const commitTime = new Date(commit.commit?.author?.date || commit.commit?.committer?.date).getTime();
+          return commitTime > latest ? commitTime : latest;
+        }, 0);
+        lastActivityTime = Math.max(lastActivityTime, latestCommit);
+      }
+      
+      // Check PRs by this member
+      const memberPRs = (githubData.pullRequests || []).filter(pr => 
+        pr.user?.login === memberName
+      );
+      
+      if (memberPRs.length > 0) {
+        const latestPR = memberPRs.reduce((latest, pr) => {
+          const prTime = new Date(pr.created_at).getTime();
+          return prTime > latest ? prTime : latest;
+        }, 0);
+        lastActivityTime = Math.max(lastActivityTime, latestPR);
+      }
+    }
+    
+    // Check ClickUp activity (task updates) using ID-based matching
+    if (clickupData?.tasks) {
+      const memberTasks = clickupData.tasks.filter(task => {
+        const assignees = task.assignees || [];
+        const memberClickUpId = clickUpUserIdMap[developer.name];
+        
+        // If we have a valid ClickUp ID, use ID-based matching only
+        if (memberClickUpId) {
+          return assignees.some(assignee => assignee.id === memberClickUpId);
+        }
+        
+        // Fallback to username matching only if no ID available
+        return assignees.some(assignee => {
+          const usernameExactMatch = assignee.username === developer.name;
+          const usernameContainsName = assignee.username?.includes(developer.name);
+          const emailMatch = assignee.email?.includes(developer.name.toLowerCase().replace(' ', '.'));
+          return usernameExactMatch || usernameContainsName || emailMatch;
+        });
+      });
+      
+      if (memberTasks.length > 0) {
+        const latestTaskUpdate = memberTasks.reduce((latest, task) => {
+          const taskTime = parseInt(task.date_updated || task.date_created || '0');
+          return taskTime > latest ? taskTime : latest;
+        }, 0);
+        lastActivityTime = Math.max(lastActivityTime, latestTaskUpdate);
+      }
+    }
+    
+    // Format the time difference
+    if (lastActivityTime === 0) {
+      return 'No recent activity';
+    }
+    
+    const diffMs = now - lastActivityTime;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffHours < 1) return 'Active now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return `${Math.floor(diffDays / 7)}w ago`;
   }
   
   // Happiness helper functions
@@ -48,13 +465,21 @@ const DeveloperCard = ({
   }
 
   const getHappinessEmoji = (score) => {
-    if (score >= 80) return '😄'
-    if (score >= 65) return '😊'
-    if (score >= 45) return '😐'
-    if (score >= 30) return '😕'
-    return '😞'
-  }
-  
+    if (score >= 80) return '😊';
+    if (score >= 65) return '🙂';
+    if (score >= 45) return '😐';
+    if (score >= 30) return '😟';
+    return '😢';
+  };
+
+  const getHappinessLevel = (score) => {
+    if (score >= 80) return 'excellent';
+    if (score >= 65) return 'good';
+    if (score >= 45) return 'neutral';
+    if (score >= 30) return 'concerning';
+    return 'critical';
+  };
+
   const getHappinessTrend = (score) => {
     // Simple trend calculation based on score (could be enhanced with historical data)
     if (score >= 65) return 'positive'
@@ -74,7 +499,7 @@ const DeveloperCard = ({
     switch (level) {
       case 'critical': return 'text-red-600 bg-red-50 border-red-200'
       case 'high': return 'text-orange-600 bg-orange-50 border-orange-200'
-      case 'moderate': return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200'
       default: return 'text-green-600 bg-green-50 border-green-200'
     }
   }
@@ -97,16 +522,13 @@ const DeveloperCard = ({
             <div className="flex items-center gap-2 mt-1">
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 burnoutData?.level === 'low' ? 'bg-green-100 text-green-700 border border-green-200' :
-                burnoutData?.level === 'moderate' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                burnoutData?.level === 'medium' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
                 'bg-red-100 text-red-700 border border-red-200'
               }`}>
                 {burnoutData?.level === 'low' ? 'active' : burnoutData?.level || 'active'}
               </span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                burnoutData?.level === 'low' ? 'bg-green-100 text-green-700 border-green-200' :
-                'bg-orange-100 text-orange-700 border-orange-200'
-              }`}>
-                {burnoutData?.level === 'low' ? 'low burnout risk' : 'moderate burnout risk'}
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap">
+                {taskMetrics.total} tasks
               </span>
             </div>
           </div>
@@ -114,11 +536,7 @@ const DeveloperCard = ({
         
         {/* SPS Score */}
         <div className="text-right">
-          <div className={`text-3xl font-bold ${
-            spsScore >= 80 ? 'text-green-500' :
-            spsScore >= 60 ? 'text-yellow-500' :
-            'text-red-500'
-          }`}>
+          <div className={`text-3xl font-bold ${getSPSColor(spsScore)}`}>
             {spsScore}%
           </div>
           <div className="text-sm text-gray-500 font-medium">
@@ -147,8 +565,8 @@ const DeveloperCard = ({
               <Radar
                 name="Performance"
                 dataKey="value"
-                stroke="#3B82F6"
-                fill="#3B82F6"
+                stroke={radarColors.stroke}
+                fill={radarColors.fill}
                 fillOpacity={0.2}
                 strokeWidth={2}
               />
@@ -165,11 +583,7 @@ const DeveloperCard = ({
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div 
-            className={`h-3 rounded-full transition-all duration-500 ${
-              spsScore >= 80 ? 'bg-gradient-to-r from-green-400 to-green-500' :
-              spsScore >= 60 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-              'bg-gradient-to-r from-red-400 to-red-500'
-            }`}
+            className={`h-3 rounded-full transition-all duration-500 ${getSPSGradient(spsScore)}`}
             style={{ width: `${spsScore}%` }}
           />
         </div>
@@ -222,20 +636,19 @@ const DeveloperCard = ({
                 {happinessData?.score || 50}/100
               </div>
               <div className="text-xs text-gray-500">
-                {happinessData?.level || 'neutral'}
+                {getHappinessLevel(happinessData?.score || 50)}
               </div>
             </div>
           </div>
           
           <div className="text-right">
             <div className="text-xs text-gray-500 mb-1">vs Team Avg</div>
-            <div className={`text-sm font-semibold ${
-              (happinessData?.score || 50) >= 65 ? 'text-green-600' :
-              (happinessData?.score || 50) >= 45 ? 'text-gray-600' :
+            <span className={`text-sm font-medium ${
+              (happinessData?.difference || 0) >= 0 ? 'text-green-600' :
               'text-red-600'
             }`}>
-              {(happinessData?.score || 50) >= 65 ? '+' : ''}{((happinessData?.score || 50) - 65).toFixed(0)}
-            </div>
+              {(happinessData?.difference || 0) >= 0 ? '+' : ''}{happinessData?.difference || 0}
+            </span>
           </div>
         </div>
         
@@ -292,7 +705,7 @@ const DeveloperCard = ({
             className={`h-2 rounded-full transition-all duration-300 ${
               burnoutData?.level === 'critical' ? 'bg-red-500' :
               burnoutData?.level === 'high' ? 'bg-orange-500' :
-              burnoutData?.level === 'moderate' ? 'bg-yellow-500' : 'bg-green-500'
+              burnoutData?.level === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
             }`}
             style={{ width: `${burnoutData?.score || 0}%` }}
           />
@@ -309,17 +722,7 @@ const DeveloperCard = ({
         </div>
       )}
 
-      {/* Action Buttons */}
-      {(burnoutData?.level === 'high' || burnoutData?.level === 'critical') && (
-        <div className="mt-4 pt-3 border-t border-gray-200">
-          <button
-            onClick={() => onSendAlert?.(developer, burnoutData)}
-            className="w-full btn-primary text-sm py-2"
-          >
-            Send Burnout Alert
-          </button>
-        </div>
-      )}
+
     </div>
   )
 }

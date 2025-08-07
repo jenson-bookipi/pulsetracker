@@ -9,12 +9,18 @@ export const useClickUpData = (token, teamId) => {
   });
 
   const fetchClickUpData = async () => {
+    const timestamp = new Date().toISOString();
+    console.log(`🚀 [${timestamp}] fetchClickUpData called with:`, { token: !!token, teamId });
+    console.log('🔥 CACHE BUST: useClickUpData.js loaded at', timestamp);
+    
     if (!token || !teamId) {
+      console.log("⚠️ Missing ClickUp credentials:", { hasToken: !!token, teamId });
       setData((prev) => ({ ...prev, loading: false }));
       return;
     }
 
     try {
+      console.log('🔄 Starting ClickUp data fetch...');
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
       const headers = {
@@ -30,31 +36,40 @@ export const useClickUpData = (token, teamId) => {
       if (!spacesResponse.ok) throw new Error("Failed to fetch ClickUp spaces");
       const spacesData = await spacesResponse.json();
 
+      console.log('📋 Fetching tasks from', spacesData.spaces.length, 'spaces');
+      
       // Fetch tasks from all spaces
-      // const taskPromises = spacesData.spaces.map(async (space) => {
-      //   try {
-      //     const tasksResponse = await fetch(
-      //       `https://api.clickup.com/api/v2/space/${space.id}/task`,
-      //       { headers }
-      //     );
-      //     if (!tasksResponse.ok) return [];
-      //     const tasksData = await tasksResponse.json();
-      //     return tasksData.tasks.map((task) => ({
-      //       ...task,
-      //       space_name: space.name,
-      //       space_id: space.id,
-      //     }));
-      //   } catch (error) {
-      //     console.error(`Error fetching tasks for space ${space.name}:`, error);
-      //     return [];
-      //   }
-      // });
+      const taskPromises = spacesData.spaces.map(async (space) => {
+        try {
+          console.log('🔍 Fetching tasks from space:', space.name);
+          const tasksResponse = await fetch(
+            `https://api.clickup.com/api/v2/space/${space.id}/task`,
+            { headers }
+          );
+          if (!tasksResponse.ok) {
+            console.warn(`Failed to fetch tasks for space ${space.name}:`, tasksResponse.status);
+            return [];
+          }
+          const tasksData = await tasksResponse.json();
+          console.log(`✅ Found ${tasksData.tasks?.length || 0} tasks in space ${space.name}`);
+          return tasksData.tasks?.map((task) => ({
+            ...task,
+            space_name: space.name,
+            space_id: space.id,
+          })) || [];
+        } catch (error) {
+          console.error(`❌ Error fetching tasks for space ${space.name}:`, error);
+          return [];
+        }
+      });
 
-      // const taskResults = await Promise.all(taskPromises);
-      // const allTasks = taskResults.flat();
+      const taskResults = await Promise.all(taskPromises);
+      const allTasks = taskResults.flat();
+      
+      console.log('🎉 Total tasks loaded:', allTasks.length);
 
       setData({
-        tasks: [],
+        tasks: allTasks,
         spaces: spacesData.spaces,
         loading: false,
         error: null,

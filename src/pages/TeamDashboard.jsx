@@ -35,7 +35,7 @@ const TeamDashboard = () => {
   
   // Memoize the team metrics config to prevent unnecessary re-renders
   const teamMetricsConfig = useMemo(() => ({
-    clickUpListId: settings?.clickup?.listId || '901810346214',
+    clickUpListId: settings?.clickup?.listId || '901810346248',
     clickUpToken: settings?.clickup?.token,
     githubOwner: settings?.github?.owner || 'jenson-bookipi',
     githubRepo: settings?.github?.repo || 'pulsetracker',
@@ -61,7 +61,7 @@ const TeamDashboard = () => {
     setIsFetchingMembers(true);
     
     try {
-      const LIST_ID = '901810346214';
+      const LIST_ID = '901810346248';
       const result = await clickupData.fetchListTasksAndTeamMembers(LIST_ID);
       setTeamMembersFromList(prevMembers => {
         // Only update if we have new members to prevent unnecessary re-renders
@@ -251,22 +251,33 @@ const TeamDashboard = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Team Dashboard</h1>
-          <p className="text-gray-600">
-            Monitor your team's productivity, wellness, and blockers
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Team Dashboard</h1>
+        <div className="flex items-center space-x-2">
+          {refreshing ? (
+            <span className="text-sm text-gray-500 flex items-center">
+              <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+              Refreshing...
+            </span>
+          ) : (
+            <span className="text-sm text-gray-500">
+              {teamMetrics.lastRefreshed 
+                ? `Last updated: ${new Date(teamMetrics.lastRefreshed).toLocaleTimeString()}` 
+                : 'Never updated'}
+            </span>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className={`p-2 rounded-full ${refreshing 
+              ? 'bg-gray-100 text-gray-400' 
+              : 'bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800'
+            } border border-gray-200 transition-colors`}
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
-        
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="btn-secondary flex items-center"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh Data'}
-        </button>
       </div>
 
       {/* Loading State */}
@@ -391,6 +402,127 @@ const TeamDashboard = () => {
                 changeType={metrics?.tasks?.blocked > 0 ? 'negative' : 'positive'}
               />
             </div>
+          </div>
+
+          {/* Health Metrics Breakdown */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <Clock className="h-5 w-5 mr-2 text-blue-600" />
+              Team Health Breakdown
+            </h2>
+            
+            {metrics?.healthMetrics?.error ? (
+              <div className="text-red-500 p-4 bg-red-50 rounded-md">
+                Error loading health metrics: {metrics.healthMetrics.error}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Velocity Metric */}
+                <div className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium text-gray-700">Velocity</h3>
+                      <p className="text-sm text-gray-500">
+                        {metrics?.healthMetrics?.velocity?.value?.toFixed(1) || '0.0'} points/week
+                        <span className="ml-2 text-xs">
+                          (target: {metrics?.healthMetrics?.velocity?.target || 20})
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {metrics?.healthMetrics?.velocity?.score?.toFixed(0) || 0}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full" 
+                      style={{ width: `${metrics?.healthMetrics?.velocity?.score || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Blockers Metric */}
+                <div className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium text-gray-700">Blockers</h3>
+                      <p className="text-sm text-gray-500">
+                        {metrics?.healthMetrics?.blockers?.count || 0} active blockers
+                      </p>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {metrics?.healthMetrics?.blockers?.score?.toFixed(0) || 0}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className={`h-2.5 rounded-full ${
+                        (metrics?.healthMetrics?.blockers?.score || 0) > 70 ? 'bg-green-600' : 
+                        (metrics?.healthMetrics?.blockers?.score || 0) > 40 ? 'bg-yellow-500' : 'bg-red-600'
+                      }`}
+                      style={{ width: `${metrics?.healthMetrics?.blockers?.score || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* PR Merge Rate */}
+                <div className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium text-gray-700">PR Merge Rate</h3>
+                      <p className="text-sm text-gray-500">
+                        {metrics?.healthMetrics?.prMergeRate?.value?.toFixed(1) || 0}% merged
+                        <span className="ml-2 text-xs">
+                          (target: {metrics?.healthMetrics?.prMergeRate?.target || 70}%)
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {metrics?.healthMetrics?.prMergeRate?.score?.toFixed(0) || 0}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-purple-600 h-2.5 rounded-full"
+                      style={{ width: `${metrics?.healthMetrics?.prMergeRate?.score || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Review Time */}
+                <div className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium text-gray-700">Avg. First Review Time</h3>
+                      <p className="text-sm text-gray-500">
+                        {metrics?.healthMetrics?.reviewTime?.hours?.toFixed(1) || 0} hours
+                        <span className="ml-2 text-xs">
+                          (target: ≤{metrics?.healthMetrics?.reviewTime?.target || 48}h)
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {metrics?.healthMetrics?.reviewTime?.score?.toFixed(0) || 0}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className={`h-2.5 rounded-full ${
+                        (metrics?.healthMetrics?.reviewTime?.score || 0) > 80 ? 'bg-green-600' : 
+                        (metrics?.healthMetrics?.reviewTime?.score || 0) > 50 ? 'bg-yellow-500' : 'bg-red-600'
+                      }`}
+                      style={{ width: `${metrics?.healthMetrics?.reviewTime?.score || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {metrics?.healthMetrics?.lastUpdated && (
+              <div className="mt-4 text-xs text-gray-500 text-right">
+                Last updated: {new Date(metrics.healthMetrics.lastUpdated).toLocaleString()}
+              </div>
+            )}
           </div>
 
           {/* Blocker Alert */}

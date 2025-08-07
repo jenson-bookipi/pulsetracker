@@ -1,5 +1,7 @@
+import dayjs from "dayjs";
 import { useEffect, useRef, useState } from "react";
 import { useSlackWebhook } from "./useSlackWebhook";
+import { fetchTasksFromList } from "../services/clickupService";
 
 /**
  * Hook to monitor team health and send alerts when it drops below a threshold
@@ -158,47 +160,62 @@ export const useTeamHealthAlert = (
     }, 1000) // 1000ms throttle
   ).current;
 
-  // Separate useEffect for setting up the fetchTicketInfo function
+  // Separate useEffect for fetching ticket information
   useEffect(() => {
-    // Function to fetch ticket information from ClickUp API
+    // Function to fetch ticket information using clickupService
     const fetchTicketInfo = async (taskId) => {
-      if (!taskId) {
-        console.error("No task ID provided");
+      if (!taskId || !settings.clickup.token) {
+        console.error("Missing required parameters for fetching task");
         return null;
       }
 
       try {
-        const response = await fetch(
-          `https://api.clickup.com/api/v2/task/${taskId}`,
+        // Fetch tasks with the specific task ID
+        const tasks = await fetchTasksFromList(
+          "901810346248",
+          settings.clickup.token,
           {
-            headers: {
-              Authorization: settings.clickup.token || "",
-              "Content-Type": "application/json",
-            },
+            includeClosed: true,
+            pageSize: 1,
+            // Add any additional filters needed to find the specific task
           }
         );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("ClickUp API Error:", {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData,
-          });
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Find the specific task by ID
+        const task = tasks.find(
+          (t) => t.id === taskId || t.custom_id === taskId
+        );
+
+        if (!task) {
+          console.warn(`Task with ID ${taskId} not found`);
+          return null;
+        }
+        const isOverdue =
+          task.due_date &&
+          task.status?.status === "in progress" &&
+          new Date(Number(task.due_date)) < new Date();
+        if (isOverdue) {
+          sendMessage(
+            `Hey, ${task.assignees?.[0]?.username.split(" ")[0]}, Task ${
+              task.name
+            } is overdue with 🚨 ${
+              task.priority.priority
+            } priority. Please check it out`,
+            settings.slack.channel
+          );
         }
 
-        const data = await response.json();
-        console.log("Fetched ticket info:", data);
-        return data;
+        return task;
       } catch (error) {
-        console.error("Error fetching ticket info:", error);
+        console.error("Error in fetchTicketInfo:", error);
         return null;
       }
     };
-    // Example usage
-    fetchTicketInfo("PROD-21581");
-  }, [settings.clickup.token]);
+
+    fetchTicketInfo("PROD-21581")
+      .then((data) => console.log("Example task data:", data))
+      .catch((error) => console.error("Example fetch failed:", error));
+  }, [settings.clickup?.token]);
 
   // Check if we should send an alert
   useEffect(() => {

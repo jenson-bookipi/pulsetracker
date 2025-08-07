@@ -249,7 +249,7 @@ const TeamDashboard = () => {
   // Initialize team health alert
   useTeamHealthAlert(
     { healthScore: teamHealthScore },
-    90, // Alert threshold (50%)
+    50, // Alert threshold (50%)
     { 
       enabled: true,
       channel: settings?.slack?.alertChannel || '#hackathon-pulsetracker'

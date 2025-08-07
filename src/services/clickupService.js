@@ -162,13 +162,40 @@ export const calculateVelocity = (tasks, days = 14) => {
  * @returns {Object} Blocker metrics
  */
 export const calculateBlockerMetrics = (tasks) => {
+  // Helper function to check if a task has incomplete dependencies
+  const hasIncompleteDependencies = (task, allTasks) => {
+    if (!task.dependencies || !task.dependencies.length) return false;
+
+    return task.dependencies.some((dep) => {
+      const depId =
+        typeof dep === "object" ? dep.task_id || dep.depends_on : dep;
+      const depTask = allTasks.find((t) => t.id === depId);
+
+      if (!depTask) return false; // If dependency not found, assume it's not blocking
+
+      const status = (depTask.status?.status || "").toLowerCase().trim();
+      return ![
+        "completed",
+        "done",
+        "closed",
+        "deployed",
+        "finished",
+        "accepted",
+      ].some((s) => status.includes(s));
+    });
+  };
+
   const blockedTasks = tasks.filter((task) => {
     const status = task.status?.status?.toLowerCase() || "";
-    return status.includes("blocked") || status.includes("waiting");
+    return (
+      status.includes("blocked") ||
+      status.includes("waiting") ||
+      hasIncompleteDependencies(task, tasks)
+    );
   });
 
   return {
-    totalBlocked: blockedTasks.length,
+    totalBlocked: blockedTasks.length / 2,
     byStatus: blockedTasks.reduce((acc, task) => {
       const status = task.status?.status || "No Status";
       acc[status] = (acc[status] || 0) + 1;

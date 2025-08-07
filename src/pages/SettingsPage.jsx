@@ -409,7 +409,7 @@ const SettingsPage = () => {
             </div>
             
             <div className="space-y-1 mb-3">
-              {settings.clickup.boardIds.map((boardId) => (
+              {settings?.clickup?.boardIds?.map((boardId) => (
                 <div key={boardId} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
                   <span className="text-sm font-mono">{boardId}</span>
                   <button
@@ -446,7 +446,7 @@ const SettingsPage = () => {
             </div>
             
             <div className="space-y-1 mb-3">
-              {settings.clickup.listIds.map((listId) => (
+              {settings?.clickup?.listIds?.map((listId) => (
                 <div key={listId} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
                   <span className="text-sm font-mono">{listId}</span>
                   <button
@@ -492,7 +492,7 @@ const SettingsPage = () => {
             </label>
             <input
               type="url"
-              value={settings.slack.webhookUrl}
+              value={settings?.slack?.webhookUrl}
               onChange={(e) => setSettings(prev => ({
                 ...prev,
                 slack: { ...prev.slack, webhookUrl: e.target.value }
@@ -557,7 +557,7 @@ const SettingsPage = () => {
           </div>
 
           <div className="space-y-2">
-            {settings.team.members.map((member) => (
+            {settings?.team?.members?.map((member) => (
               <div key={member.id} className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
                 <div>
                   <div className="font-medium">{member.name}</div>

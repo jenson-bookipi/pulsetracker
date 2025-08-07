@@ -167,31 +167,23 @@ export const useTeamHealthAlert = (
         return null;
       }
 
-      // Ensure we have both token and team ID
-      if (!settings.clickup?.token || !settings.clickup?.teamId) {
-        console.error("Missing ClickUp token or team ID in settings");
-        return null;
-      }
-
       try {
         const response = await fetch(
-          `https://api.clickup.com/api/v2/team/${settings.clickup.teamId}/task/${taskId}`,
+          `https://api.clickup.com/api/v2/task/${taskId}`,
           {
             headers: {
-              Authorization: settings.clickup.token,
+              Authorization: settings.clickup.token || "",
               "Content-Type": "application/json",
             },
           }
         );
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const errorData = await response.json();
           console.error("ClickUp API Error:", {
             status: response.status,
             statusText: response.statusText,
-            error: errorData.err || "Unknown error",
-            url: response.url,
-            teamId: settings.clickup.teamId,
+            error: errorData,
           });
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -200,23 +192,13 @@ export const useTeamHealthAlert = (
         console.log("Fetched ticket info:", data);
         return data;
       } catch (error) {
-        console.error("Error in fetchTicketInfo:", {
-          message: error.message,
-          taskId,
-          teamId: settings.clickup?.teamId,
-          timestamp: new Date().toISOString(),
-        });
+        console.error("Error fetching ticket info:", error);
         return null;
       }
     };
-
-    // Example usage - you can remove this in production
-    if (process.env.NODE_ENV === "development") {
-      fetchTicketInfo("PROD-21581")
-        .then((data) => console.log("Example ticket data:", data))
-        .catch((error) => console.error("Example fetch failed:", error));
-    }
-  }, [settings.clickup?.token, settings.clickup?.teamId]);
+    // Example usage
+    fetchTicketInfo("PROD-21581");
+  }, [settings.clickup.token]);
 
   // Check if we should send an alert
   useEffect(() => {

@@ -74,6 +74,7 @@ export const useClickUpData = (token, teamId) => {
   }, [token, teamId]);
 
   const getTasksByAssignee = (userId) => {
+    console.log("data.tasks", data);
     return data.tasks.filter((task) =>
       task.assignees?.some(
         (assignee) => assignee.id === userId || assignee.username === userId
@@ -84,24 +85,19 @@ export const useClickUpData = (token, teamId) => {
   const getCompletedTasks = (userId, days = 7) => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-
-    return getTasksByAssignee(userId)
-      .filter(
-        (task) =>
-          task.status?.status === "complete" || task.status?.status === "closed"
-      )
-      .filter((task) => {
-        const completedDate = task.date_closed
-          ? new Date(parseInt(task.date_closed))
-          : null;
-        return completedDate && completedDate > cutoff;
-      });
+    console.log("userId", getTasksByAssignee(userId));
+    return getTasksByAssignee(userId).filter(
+      (task) =>
+        task.status?.status === "completed" ||
+        task.status?.status === "deployed"
+    );
   };
 
   const getOpenTasks = (userId) => {
     return getTasksByAssignee(userId).filter(
       (task) =>
-        task.status?.status !== "complete" && task.status?.status !== "closed"
+        task.status?.status !== "completed" &&
+        task.status?.status !== "deployed"
     );
   };
 
@@ -136,7 +132,7 @@ export const useClickUpData = (token, teamId) => {
     const completedTasks = getCompletedTasks(userId);
     const openTasks = getOpenTasks(userId);
     const blockedTasks = getBlockedTasks(userId);
-
+    console.log("completedTaskscompletedTasks", completedTasks);
     return {
       total: userTasks.length,
       completed: completedTasks.length,

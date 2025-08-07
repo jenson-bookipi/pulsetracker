@@ -5,11 +5,12 @@
 
 /**
  * Fetches tasks from a ClickUp list and formats them as requested
- * @param {string} listId - The ClickUp list ID (e.g., "901810346214")
+ * @param {string} listId - The ClickUp list ID (e.g., "901810346248")
  * @param {string} token - ClickUp API token (should not include "Bearer " prefix)
+ * @param {Object} options - Additional options including timestamp to prevent caching
  * @returns {Promise<Array>} Array of formatted task objects
  */
-export const fetchClickUpListTasks = async (listId, token) => {
+export const fetchClickUpListTasks = async (listId, token, options = {}) => {
   try {
     if (!token) {
       throw new Error("No ClickUp token provided");
@@ -19,68 +20,78 @@ export const fetchClickUpListTasks = async (listId, token) => {
     }
 
     const headers = {
-      Authorization: token, // Token is passed without 'Bearer ' prefix
+      Authorization: token,
       "Content-Type": "application/json",
     };
 
-    // Include additional query parameters to get more task details
-    const queryParams = new URLSearchParams({
-      archived: "false",
-      include_closed: "true",
-      page: "0",
-      order_by: "created",
-      reverse: "true",
-      subtasks: "true",
-      statuses: "",
-      include_markdown_description: "false",
-      custom_fields: "",
-      list_id: listId,
-    });
+    let allTasks = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 100; // Maximum allowed by ClickUp API
 
-    const response = await fetch(
-      `https://api.clickup.com/api/v2/list/${listId}/task?${queryParams}`,
-      { headers }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("ClickUp API Error:", {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
+    // Fetch all pages of tasks
+    while (hasMore) {
+      const queryParams = new URLSearchParams({
+        archived: "false",
+        include_closed: "true",
+        page: page.toString(),
+        order_by: "updated", // Sort by last updated to get most recent changes
+        reverse: "true",
+        subtasks: "true",
+        statuses: "",
+        include_markdown_description: "false",
+        custom_fields: "",
+        _t: options._t || Date.now(), // Add timestamp to prevent caching
       });
-      throw new Error(
-        `ClickUp API error: ${response.status} ${response.statusText}`
+
+      const response = await fetch(
+        `https://api.clickup.com/api/v2/list/${listId}/task?${queryParams}`,
+        {
+          headers,
+          cache: "no-store", // Prevent browser caching
+        }
       );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("ClickUp API Error:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        throw new Error(
+          `ClickUp API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.tasks && Array.isArray(data.tasks)) {
+        allTasks = [...allTasks, ...data.tasks];
+        // If we got fewer tasks than the page size, we've reached the end
+        if (data.tasks.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    const data = await response.json();
+    console.log(`Fetched ${allTasks.length} tasks from ClickUp`);
 
-    // Format tasks according to requirements with enhanced details
-    const formattedTasks = data.tasks.map((task) => ({
+    // Format tasks as needed
+    const formattedTasks = allTasks.map((task) => ({
       id: task.id,
       name: task.name,
-      status: task.status?.status || "No Status",
-      assignees:
-        task.assignees
-          ?.map((assignee) => assignee.username || assignee.email)
-          .filter(Boolean) || [],
-      due_date: task.due_date
-        ? new Date(parseInt(task.due_date)).toISOString().split("T")[0] // Format as YYYY-MM-DD
+      status: task.status
+        ? {
+            status: task.status.status,
+            color: task.status.color,
+            type: task.status.type,
+          }
         : null,
-      url: task.url,
-
-      // Enhanced details
-      description: task.description || task.text_content || "",
-      priority: task.priority?.priority || null,
-      points: task.points || null, // Story points
-      tags: task.tags?.map((tag) => tag.name) || [],
-
-      // Time tracking
-      time_estimate: task.time_estimate || null,
-      time_spent: task.time_spent || null,
-
-      // Dates
       date_created: task.date_created
         ? new Date(parseInt(task.date_created)).toISOString()
         : null,
@@ -90,52 +101,23 @@ export const fetchClickUpListTasks = async (listId, token) => {
       date_closed: task.date_closed
         ? new Date(parseInt(task.date_closed)).toISOString()
         : null,
-
-      // Additional metadata
-      creator: task.creator?.username || task.creator?.email || "Unknown",
-      list_id: task.list?.id || listId,
-      list_name: task.list?.name || "Unknown List",
-      folder_id: task.folder?.id || null,
-      folder_name: task.folder?.name || null,
-      space_id: task.space?.id || null,
-      space_name: task.space?.name || null,
-
-      // Comments and watchers
-      comment_count: task.comment_count || 0,
-      watchers:
-        task.watchers
-          ?.map((watcher) => watcher.username || watcher.email)
-          .filter(Boolean) || [],
-
-      // Custom fields (if any)
-      custom_fields:
-        task.custom_fields?.map((field) => ({
-          id: field.id,
-          name: field.name,
-          value: field.value,
-          type: field.type,
+      url: `https://app.clickup.com/t/${task.id}`,
+      assignees:
+        task.assignees?.map((a) => ({
+          id: a.id,
+          username: a.username,
+          email: a.email,
+          color: a.color,
         })) || [],
-
-      // Subtasks
-      subtask_count: task.subtasks?.length || 0,
-      subtasks:
-        task.subtasks?.map((subtask) => ({
-          id: subtask.id,
-          name: subtask.name,
-          status: subtask.status?.status || "No Status",
-        })) || [],
-
-      // Dependencies
-      dependencies: task.dependencies || [],
-
-      // Archive status
-      archived: task.archived || false,
+      custom_fields: task.custom_fields || [],
+      tags: task.tags || [],
+      // Add more fields as needed
     }));
 
     return formattedTasks;
   } catch (error) {
-    console.error("Error fetching ClickUp tasks:", error);
-    throw error;
+    console.error("Error in fetchClickUpListTasks:", error);
+    throw error; // Re-throw to be handled by the caller
   }
 };
 
@@ -280,6 +262,6 @@ export const fetchClickUpListTasksWithOptions = async (
 // Example usage function for the specific URL provided
 export const fetchSprintTasks = async (token) => {
   const listUrl =
-    "https://app.clickup.com/6912544/v/l/li/901810346214?pr=90030340817";
+    "https://app.clickup.com/6912544/v/l/li/901810346248?pr=90030340817";
   return await fetchTasksFromListUrl(listUrl, token);
 };

@@ -241,13 +241,8 @@ const TeamDashboard = () => {
   }
 
   const isLoading = githubData.loading || clickupData.loading || teamMetrics.loading
-  console.log('loaaading', {
-    githubDataLoading: githubData.loading,
-    clickupDataLoading: clickupData.loading,
-    teamMetricsLoading: teamMetrics.loading,
-  })
   const metrics = teamMetrics.metrics
-
+  console.log('metricsmetrics', metrics)
   return (
     <div className="space-y-8">
       {/* Header */}

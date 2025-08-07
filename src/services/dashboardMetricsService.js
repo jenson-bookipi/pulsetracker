@@ -320,7 +320,7 @@ const calculateProductivityScore = ({ velocity, prMetrics, commitMetrics }) => {
   const velocityScore = Math.min(velocity / 30, 1); // Cap at 30 points per week for 100% score
   const prThroughputScore = Math.min(prMetrics.merged / 10, 1); // Cap at 10 PRs per period
   const commitScore = Math.min(commitMetrics.total / 50, 1); // Cap at 50 commits per period
-
+  console.log("prThroughputScore", { prThroughputScore, commitScore });
   // Weighted average of all scores
   const productivityScore =
     (velocityScore * 0.5 + prThroughputScore * 0.3 + commitScore * 0.2) * 100;

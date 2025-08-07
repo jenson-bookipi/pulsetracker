@@ -324,7 +324,6 @@ const calculateProductivityScore = ({ velocity, prMetrics, commitMetrics }) => {
   // Weighted average of all scores
   const productivityScore =
     (velocityScore * 0.5 + prThroughputScore * 0.3 + commitScore * 0.2) * 100;
-
   return Math.min(100, Math.max(0, Math.round(productivityScore)));
 };
 

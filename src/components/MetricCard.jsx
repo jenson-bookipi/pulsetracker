@@ -1,5 +1,6 @@
 import React from 'react';
 
+
 const MetricCard = ({ 
   icon, 
   title, 
@@ -14,6 +15,7 @@ const MetricCard = ({
     negative: 'text-red-600 bg-red-50',
     neutral: 'text-gray-600 bg-gray-50',
   };
+
 
   return (
     <div className={`bg-white rounded-lg p-4 border border-gray-200 ${className}`}>

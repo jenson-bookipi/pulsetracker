@@ -31,30 +31,30 @@ export const useClickUpData = (token, teamId) => {
       const spacesData = await spacesResponse.json();
 
       // Fetch tasks from all spaces
-      const taskPromises = spacesData.spaces.map(async (space) => {
-        try {
-          const tasksResponse = await fetch(
-            `https://api.clickup.com/api/v2/space/${space.id}/task`,
-            { headers }
-          );
-          if (!tasksResponse.ok) return [];
-          const tasksData = await tasksResponse.json();
-          return tasksData.tasks.map((task) => ({
-            ...task,
-            space_name: space.name,
-            space_id: space.id,
-          }));
-        } catch (error) {
-          console.error(`Error fetching tasks for space ${space.name}:`, error);
-          return [];
-        }
-      });
+      // const taskPromises = spacesData.spaces.map(async (space) => {
+      //   try {
+      //     const tasksResponse = await fetch(
+      //       `https://api.clickup.com/api/v2/space/${space.id}/task`,
+      //       { headers }
+      //     );
+      //     if (!tasksResponse.ok) return [];
+      //     const tasksData = await tasksResponse.json();
+      //     return tasksData.tasks.map((task) => ({
+      //       ...task,
+      //       space_name: space.name,
+      //       space_id: space.id,
+      //     }));
+      //   } catch (error) {
+      //     console.error(`Error fetching tasks for space ${space.name}:`, error);
+      //     return [];
+      //   }
+      // });
 
-      const taskResults = await Promise.all(taskPromises);
-      const allTasks = taskResults.flat();
+      // const taskResults = await Promise.all(taskPromises);
+      // const allTasks = taskResults.flat();
 
       setData({
-        tasks: allTasks,
+        tasks: [],
         spaces: spacesData.spaces,
         loading: false,
         error: null,

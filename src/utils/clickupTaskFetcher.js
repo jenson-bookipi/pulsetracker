@@ -65,7 +65,6 @@ export const fetchClickUpListTasks = async (listId, token, options = {}) => {
       }
 
       const data = await response.json();
-
       if (data.tasks && Array.isArray(data.tasks)) {
         allTasks = [...allTasks, ...data.tasks];
         // If we got fewer tasks than the page size, we've reached the end
@@ -111,6 +110,7 @@ export const fetchClickUpListTasks = async (listId, token, options = {}) => {
         })) || [],
       custom_fields: task.custom_fields || [],
       tags: task.tags || [],
+      ...task,
       // Add more fields as needed
     }));
 

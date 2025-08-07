@@ -18,7 +18,6 @@ import { calculatePRMetrics, calculateCommitMetrics } from "./githubService";
 export const calculateTeamProductivity = (params, options = {}) => {
   const { tasks = [], pullRequests = [], commits = [] } = params;
   const { days = 30 } = options;
-
   // Calculate ClickUp metrics
   const velocityMetrics = calculateVelocity(tasks, days);
   const blockerMetrics = calculateBlockerMetrics(tasks);
@@ -138,6 +137,70 @@ const calculateTeamMemberMetrics = ({
     const memberTasks = tasks.filter((t) =>
       t.assignees?.some((a) => a.username === username)
     );
+
+    // Helper function to check if a task has incomplete dependencies
+    const hasIncompleteDependencies = (task, allTasks) => {
+      if (!task.dependencies || !task.dependencies.length) {
+        console.log(`Task ${task.id} (${task.name}) has no dependencies`);
+        return false;
+      }
+
+      console.log(`Checking dependencies for task ${task.id} (${task.name}):`, {
+        taskStatus: task.status?.status,
+        dependencies: task.dependencies,
+        allTasksAvailable: allTasks.length,
+      });
+
+      return task.dependencies.some((dep) => {
+        // Handle both string (ID only) and object (full dependency object) formats
+        const depId =
+          typeof dep === "object" ? dep.task_id || dep.depends_on : dep;
+        const depTask = allTasks.find((t) => t.id === depId);
+
+        if (!depTask) {
+          console.warn(
+            `Dependency ${depId} not found for task ${task.id} (${task.name})`
+          );
+          return false; // If dependency not found, assume it's not blocking
+        }
+
+        const status = (depTask.status?.status || "").toLowerCase().trim();
+        const isCompleted = [
+          "completed",
+          "done",
+          "closed",
+          "deployed",
+          "finished",
+          "accepted",
+        ].some((s) => status.includes(s));
+
+        console.log(`Dependency check for task ${task.id} (${task.name}):`, {
+          dependencyId: depId,
+          dependencyName: depTask.name,
+          dependencyStatus: depTask.status?.status,
+          isCompleted,
+          blocksTask: !isCompleted,
+        });
+
+        return !isCompleted;
+      });
+    };
+
+    // Log all tasks for this member for debugging
+    console.log(`Tasks for member ${username}:`, {
+      totalTasks: memberTasks.length,
+      tasks: memberTasks.map((t) => ({
+        id: t.id,
+        name: t.name,
+        status: t.status?.status,
+        hasDependencies: !!(t.dependencies && t.dependencies.length),
+        dependencies: t.dependencies?.map((d) => ({
+          id: typeof d === "object" ? d.task_id || d.depends_on : d,
+          type: typeof d,
+        })),
+      })),
+    });
+
     const completedTasks = memberTasks.filter((task) => {
       if (!task.status?.status) return false;
 
@@ -162,11 +225,45 @@ const calculateTeamMemberMetrics = ({
         "testing",
       ].includes(status);
     });
-    const blockedTasks = memberTasks.filter(
-      (task) =>
-        task.status?.status?.toLowerCase().includes("blocked") ||
-        task.status?.status?.toLowerCase().includes("waiting")
-    );
+    // filter blocked tasks using task?.dependencies
+    // if dependencies array has atleast 1 index
+    // flag it as blocked
+    const blockedTasks = memberTasks.filter((task) => {
+      const status = (task.status?.status || "").toLowerCase();
+      const hasDependencies = task?.dependencies?.length > 0;
+
+      // Check if task is explicitly marked as blocked
+      const isExplicitlyBlocked = [
+        "blocked",
+        "waiting",
+        "on-hold",
+        "on hold",
+      ].some((blockedStatus) => status.includes(blockedStatus));
+
+      // Check if task has incomplete dependencies
+      const hasBlockingDependencies = hasIncompleteDependencies(
+        task,
+        tasks || []
+      );
+
+      if (isExplicitlyBlocked || hasBlockingDependencies) {
+        console.log(`Task ${task.id} (${task.name}) is blocked:`, {
+          status: task.status?.status,
+          isExplicitlyBlocked,
+          hasBlockingDependencies,
+          dependencies: task.dependencies?.map((dep) => ({
+            id: typeof dep === "object" ? dep.task_id || dep.depends_on : dep,
+            status: (tasks || []).find(
+              (t) =>
+                t.id ===
+                (typeof dep === "object" ? dep.task_id || dep.depends_on : dep)
+            )?.status?.status,
+          })),
+        });
+      }
+
+      return isExplicitlyBlocked || hasBlockingDependencies || hasDependencies;
+    });
 
     // PR metrics for this member
     const prsByMember = pullRequests.filter(

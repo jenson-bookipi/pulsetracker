@@ -197,6 +197,7 @@ export const useTeamMetrics = ({
 
         // Calculate blocker impact
         const blockerCount = metrics.tasks?.blocked || 0;
+        console.log("metrics-blockers11", metrics.tasks);
         const blockerImpact = Math.min(100, (blockerCount / 10) * 100); // 10+ blockers = 100% impact
 
         // Calculate PR metrics

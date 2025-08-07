@@ -242,7 +242,6 @@ const TeamDashboard = () => {
 
   const isLoading = githubData.loading || clickupData.loading || teamMetrics.loading
   const metrics = teamMetrics.metrics
-  console.log('metricsmetrics', metrics)
   return (
     <div className="space-y-8">
       {/* Header */}

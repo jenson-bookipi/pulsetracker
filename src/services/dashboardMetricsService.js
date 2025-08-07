@@ -57,16 +57,30 @@ export const calculateTeamProductivity = (params, options = {}) => {
     // Task metrics
     tasks: {
       total: tasks.length,
-      completed: tasks.filter(
-        (t) =>
-          t.status?.status?.toLowerCase() === "complete" ||
-          t.status?.status?.toLowerCase() === "done"
-      ).length,
-      inProgress: tasks.filter(
-        (t) =>
-          t.status?.status?.toLowerCase().includes("in progress") ||
-          t.status?.status?.toLowerCase() === "in review"
-      ).length,
+      completed: tasks.filter((task) => {
+        if (!task.status?.status) return false;
+
+        const status = task.status.status.toLowerCase();
+        return [
+          "completed",
+          "done",
+          "closed",
+          "deployed",
+          "finished",
+          "accepted",
+        ].includes(status);
+      }).length,
+      inProgress: tasks.filter((task) => {
+        const status = task.status?.status?.toLowerCase() || "";
+        return [
+          "in progress",
+          "in-progress",
+          "in review",
+          "review",
+          "in testing",
+          "testing",
+        ].includes(status);
+      }).length,
       blocked: blockerMetrics.totalBlocked,
       velocity: velocityMetrics,
       blockers: blockerMetrics,
@@ -124,20 +138,34 @@ const calculateTeamMemberMetrics = ({
     const memberTasks = tasks.filter((t) =>
       t.assignees?.some((a) => a.username === username)
     );
-    const completedTasks = memberTasks.filter(
-      (t) =>
-        t.status?.status?.toLowerCase() === "complete" ||
-        t.status?.status?.toLowerCase() === "done"
-    );
-    const inProgressTasks = memberTasks.filter(
-      (t) =>
-        t.status?.status?.toLowerCase().includes("in progress") ||
-        t.status?.status?.toLowerCase() === "in review"
-    );
+    const completedTasks = memberTasks.filter((task) => {
+      if (!task.status?.status) return false;
+
+      const status = task.status.status.toLowerCase();
+      return [
+        "completed",
+        "done",
+        "closed",
+        "deployed",
+        "finished",
+        "accepted",
+      ].includes(status);
+    });
+    const inProgressTasks = memberTasks.filter((task) => {
+      const status = task.status?.status?.toLowerCase() || "";
+      return [
+        "in progress",
+        "in-progress",
+        "in review",
+        "review",
+        "in testing",
+        "testing",
+      ].includes(status);
+    });
     const blockedTasks = memberTasks.filter(
-      (t) =>
-        t.status?.status?.toLowerCase().includes("blocked") ||
-        t.status?.status?.toLowerCase().includes("waiting")
+      (task) =>
+        task.status?.status?.toLowerCase().includes("blocked") ||
+        task.status?.status?.toLowerCase().includes("waiting")
     );
 
     // PR metrics for this member

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, TestTube, AlertCircle, CheckCircle, Github, Slack } from 'lucide-react'
+import { Save, TestTube, AlertCircle, CheckCircle, Github, Slack, Bell } from 'lucide-react'
 import CorsErrorModal from '../components/CorsErrorModal'
 import { useSlackWebhook } from '../hooks/useSlackWebhook'
 
@@ -20,6 +20,11 @@ const SettingsPage = () => {
     },
     team: {
       members: []
+    },
+    alerts: {
+      stagnantTaskEnabled: false,
+      stagnantTaskThresholdHours: 24,
+      stagnantTaskThresholdUnit: 'hours' // 'hours' or 'seconds'
     }
   })
 
@@ -33,6 +38,49 @@ const SettingsPage = () => {
   const [corsError, setCorsError] = useState(null)
   
   const slackWebhook = useSlackWebhook(settings.slack.webhookUrl)
+
+  // Direct test alert function for stagnant tasks using existing slackWebhook hook
+  const testStagnantTaskAlert = async () => {
+    if (!settings?.slack?.webhookUrl) {
+      alert('Please configure Slack webhook URL first');
+      return;
+    }
+
+    const alertsEnabled = settings?.alerts?.stagnantTaskEnabled || false;
+    const thresholdHours = settings?.alerts?.stagnantTaskThresholdHours || 24;
+    const thresholdUnit = settings?.alerts?.stagnantTaskThresholdUnit || 'hours';
+
+    const testMessage = 
+      `🧪 *Test Alert*\n\n` +
+      `This is a test message from PulseTracker's stagnant task alert system.\n\n` +
+      `*Settings:*\n` +
+      `• Alerts Enabled: ${alertsEnabled ? 'Yes' : 'No'}\n` +
+      `• Threshold: ${thresholdHours} ${thresholdUnit === 'seconds' ? 'seconds' : 'hours'}\n` +
+      `• Current Time: ${new Date().toLocaleString()}`;
+
+    try {
+      console.log('📤 Sending test stagnant task alert via Supabase...');
+      const result = await slackWebhook.sendMessage(testMessage, 'info');
+      
+      if (result) {
+        console.log('✅ Test alert sent successfully');
+        alert('Test alert sent successfully!');
+      } else {
+        console.error('❌ Failed to send test alert:', slackWebhook.error);
+        
+        // Check if it's a CORS error and show the modal
+        if (slackWebhook.error && typeof slackWebhook.error === 'object' && slackWebhook.error.type === 'CORS_BLOCKED') {
+          setCorsError(slackWebhook.error);
+          alert('CORS error detected - see modal for alternatives');
+        } else {
+          alert(`Failed to send test alert: ${slackWebhook.error?.message || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Test alert error:', error);
+      alert(`Failed to send test alert: ${error.message}`);
+    }
+  };
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -516,6 +564,169 @@ const SettingsPage = () => {
             </button>
             <TestResult service="slack" />
           </div>
+        </div>
+      </div>
+
+      {/* Stagnant Task Alert Settings */}
+      <div className="card">
+        <div className="flex items-center mb-4">
+          <div className="w-6 h-6 bg-yellow-600 rounded mr-3 flex items-center justify-center">
+            <Bell className="h-4 w-4 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold">Stagnant Task Alerts</h2>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <h3 className="font-medium text-gray-900">Enable Stagnant Task Alerts</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Send Slack notifications when tasks remain in 'in progress' status too long
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings?.alerts?.stagnantTaskEnabled || false}
+                onChange={(e) => setSettings(prev => ({
+                  ...prev,
+                  alerts: { ...prev.alerts, stagnantTaskEnabled: e.target.checked }
+                }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Alert Threshold
+            </label>
+            <div className="flex items-center gap-4 mb-2">
+              <input
+                type="number"
+                min={settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? "10" : "1"}
+                max={settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? "3600" : "168"}
+                value={settings?.alerts?.stagnantTaskThresholdHours || 24}
+                onChange={(e) => setSettings(prev => ({
+                  ...prev,
+                  alerts: { ...prev.alerts, stagnantTaskThresholdHours: parseInt(e.target.value) || 24 }
+                }))}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                disabled={!settings?.alerts?.stagnantTaskEnabled}
+              />
+              <select
+                value={settings?.alerts?.stagnantTaskThresholdUnit || 'hours'}
+                onChange={(e) => {
+                  const newUnit = e.target.value;
+                  const currentValue = settings?.alerts?.stagnantTaskThresholdHours || 24;
+                  let newValue = currentValue;
+                  
+                  // Convert between units
+                  if (newUnit === 'seconds' && settings?.alerts?.stagnantTaskThresholdUnit === 'hours') {
+                    newValue = Math.max(30, currentValue * 3600); // Convert hours to seconds, min 30s
+                  } else if (newUnit === 'hours' && settings?.alerts?.stagnantTaskThresholdUnit === 'seconds') {
+                    newValue = Math.max(1, Math.round(currentValue / 3600)); // Convert seconds to hours, min 1h
+                  }
+                  
+                  setSettings(prev => ({
+                    ...prev,
+                    alerts: { 
+                      ...prev.alerts, 
+                      stagnantTaskThresholdUnit: newUnit,
+                      stagnantTaskThresholdHours: newValue
+                    }
+                  }));
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                disabled={!settings?.alerts?.stagnantTaskEnabled}
+              >
+                <option value="hours">Hours</option>
+                <option value="seconds">Seconds (Testing)</option>
+              </select>
+            </div>
+            <div className="text-sm text-gray-500 mb-2">
+              Send alert if task hasn't been updated for this duration
+            </div>
+            <p className="text-xs text-gray-500">
+              {settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? (
+                <>Range: 10-3600 seconds (10 seconds to 1 hour). For testing purposes only.</>
+              ) : (
+                <>Range: 1-168 hours (1 hour to 1 week). Default: 24 hours.</>
+              )}
+            </p>
+          </div>
+
+          {/* Check Interval Setting */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Check Interval
+            </label>
+            <div className="flex space-x-2">
+              <input
+                type="number"
+                value={settings?.alerts?.stagnantTaskCheckInterval || (settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? 30 : 30)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  const unit = settings?.alerts?.stagnantTaskThresholdUnit || 'hours';
+                  const min = unit === 'seconds' ? 10 : 5;
+                  const max = unit === 'seconds' ? 300 : 120;
+                  const clampedValue = Math.min(Math.max(value, min), max);
+                  
+                  setSettings(prev => ({
+                    ...prev,
+                    alerts: { 
+                      ...prev.alerts, 
+                      stagnantTaskCheckInterval: clampedValue
+                    }
+                  }));
+                }}
+                min={settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? 10 : 5}
+                max={settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? 300 : 120}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                disabled={!settings?.alerts?.stagnantTaskEnabled}
+              />
+              <span className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-600 min-w-[80px] flex items-center justify-center">
+                {settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? 'seconds' : 'minutes'}
+              </span>
+            </div>
+            <div className="text-sm text-gray-500 mb-2">
+              How often to check for stagnant tasks
+            </div>
+            <p className="text-xs text-gray-500">
+              {settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? (
+                <>Range: 10-300 seconds. Default: 30 seconds. Shorter intervals provide faster detection but use more resources.</>
+              ) : (
+                <>Range: 5-120 minutes. Default: 30 minutes. Shorter intervals provide faster detection but use more resources.</>
+              )}
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Requirements:</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-700">
+                  <li>ClickUp token and team ID must be configured</li>
+                  <li>Slack webhook URL must be configured</li>
+                  <li>Alerts will automatically start when both are ready</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {settings?.alerts?.stagnantTaskEnabled && settings?.slack?.webhookUrl && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={testStagnantTaskAlert}
+                className="btn-secondary flex items-center"
+              >
+                <TestTube className="h-4 w-4 mr-2" />
+                Test Stagnant Task Alert
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { useClickUpData } from '../hooks/useClickUpData'
 import { useSlackWebhook } from '../hooks/useSlackWebhook'
 import { useBlockedTickets } from '../hooks/useBlockedTickets'
 import { useTeamMetrics } from '../hooks/useTeamMetrics'
+import useStagnantTaskDetector from '../hooks/useStagnantTaskDetector'
 
 // Import components
 import DeveloperCard from '../components/DeveloperCard'
@@ -17,6 +18,7 @@ import HappinessMeter from '../components/HappinessMeter'
 import CorsErrorModal from '../components/CorsErrorModal'
 import ClickUpTaskList from '../components/ClickUpTaskList'
 import MetricCard from '../components/MetricCard'
+import StagnantTaskAlert from '../components/StagnantTaskAlert'
 
 const TeamDashboard = () => {
   const [settings, setSettings] = useState(null)
@@ -53,6 +55,78 @@ const TeamDashboard = () => {
 
   // Initialize the new team metrics hook with memoized config
   const teamMetrics = useTeamMetrics(teamMetricsConfig)
+  
+  // Create safe ClickUp data from teamMetrics for stagnant task detector
+  const safeClickUpData = useMemo(() => {
+    console.log('🔍 Creating safeClickUpData:', {
+      teamMetrics: !!teamMetrics,
+      tasks: teamMetrics?.tasks,
+      tasksLength: teamMetrics?.tasks?.length,
+      loading: teamMetrics?.loading
+    });
+    
+    if (teamMetrics && teamMetrics.tasks && teamMetrics.tasks.length > 0) {
+      const safeData = {
+        tasks: teamMetrics.tasks,
+        loading: teamMetrics.loading || false,
+        error: null
+      };
+      console.log('✅ safeClickUpData created:', {
+        tasksCount: safeData.tasks.length,
+        loading: safeData.loading,
+        sampleTask: safeData.tasks[0]
+      });
+      
+      // 📋 태스크 상세 정보 출력
+      console.log('📋 모든 태스크 상세 정보:');
+      safeData.tasks.forEach((task, index) => {
+        // 날짜 형식 디버깅
+        console.log(`🔍 Raw date_updated for ${task.name}:`, task.date_updated, typeof task.date_updated);
+        
+        // 다양한 날짜 형식 시도
+        let lastUpdated;
+        if (typeof task.date_updated === 'string' && task.date_updated.includes('T')) {
+          // ISO 형식: "2025-01-07T13:20:30.000Z"
+          lastUpdated = new Date(task.date_updated);
+        } else if (typeof task.date_updated === 'string' && !isNaN(task.date_updated)) {
+          // 문자열 숫자: "1736251230000"
+          lastUpdated = new Date(parseInt(task.date_updated));
+        } else if (typeof task.date_updated === 'number') {
+          // 숫자: 1736251230000
+          lastUpdated = new Date(task.date_updated);
+        } else {
+          // 기본값
+          lastUpdated = new Date(task.date_updated);
+        }
+        
+        const now = new Date();
+        const timeDiff = Math.floor((now - lastUpdated) / 1000); // 초 단위
+        
+        console.log(`  ${index + 1}. ${task.name}`);
+        console.log(`     🔍 Status 객체:`, task.status);
+        console.log(`     📊 상태: ${task.status?.status || task.status?.name || task.status || 'Unknown'}`);
+        console.log(`     👤 담당자: ${task.assignees?.map(a => a.username).join(', ') || 'Unassigned'}`);
+        console.log(`     ⏰ 마지막 업데이트: ${lastUpdated.toLocaleString('ko-KR')} (${lastUpdated.getFullYear()})`);
+        console.log(`     ⏱️ 경과 시간: ${timeDiff}초 전`);
+        console.log(`     🔗 ID: ${task.id}`);
+        console.log('     ---');
+      });
+      return safeData;
+    }
+    console.log('❌ safeClickUpData returning null');
+    return null;
+  }, [teamMetrics]);
+  
+  // Initialize stagnant task detector with settings and ClickUp data from teamMetrics (safe)
+  const stagnantTaskDetector = useStagnantTaskDetector({
+    alertsEnabled: settings?.alerts?.stagnantTaskEnabled || false,
+    thresholdHours: settings?.alerts?.stagnantTaskThresholdHours || 24,
+    thresholdUnit: settings?.alerts?.stagnantTaskThresholdUnit || 'hours',
+    checkInterval: settings?.alerts?.stagnantTaskCheckInterval || (settings?.alerts?.stagnantTaskThresholdUnit === 'seconds' ? 30 : 30),
+    slackWebhookUrl: settings?.slack?.webhookUrl || '',
+    clickUpData: safeClickUpData, // Use safe teamMetrics data
+    refreshClickUpData: teamMetrics?.refresh // Pass refresh function for unified interval management
+  })
 
   // Memoize the fetch function
   const fetchTeamMembers = useCallback(async () => {
@@ -108,6 +182,30 @@ const TeamDashboard = () => {
     window.addEventListener('pulsetracker-settings-updated', handleSettingsUpdate)
     return () => window.removeEventListener('pulsetracker-settings-updated', handleSettingsUpdate)
   }, [])
+
+  // Expose test alert function to window for settings page
+  useEffect(() => {
+    console.log('🔧 Registering test alert function:', {
+      hasTestAlert: !!stagnantTaskDetector?.testAlert,
+      stagnantTaskDetector: !!stagnantTaskDetector
+    });
+    
+    if (stagnantTaskDetector?.testAlert) {
+      window.testStagnantTaskAlert = stagnantTaskDetector.testAlert;
+      console.log('✅ Test alert function registered successfully');
+    } else {
+      console.warn('⚠️ Test alert function not available yet');
+      // Create a fallback function that shows the error
+      window.testStagnantTaskAlert = () => {
+        alert('Test alert function is not ready yet. Please wait a moment and try again.');
+      };
+    }
+    
+    return () => {
+      console.log('🧹 Cleaning up test alert function');
+      delete window.testStagnantTaskAlert;
+    }
+  }, [stagnantTaskDetector, stagnantTaskDetector?.testAlert])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -251,21 +349,12 @@ const TeamDashboard = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Team Dashboard</h1>
-        <div className="flex items-center space-x-2">
-          {refreshing ? (
-            <span className="text-sm text-gray-500 flex items-center">
-              <RefreshCw className="h-4 w-4 animate-spin mr-1" />
-              Refreshing...
-            </span>
-          ) : (
-            <span className="text-sm text-gray-500">
-              {teamMetrics.lastRefreshed 
-                ? `Last updated: ${new Date(teamMetrics.lastRefreshed).toLocaleTimeString()}` 
-                : 'Never updated'}
-            </span>
-          )}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Team Dashboard</h1>
+          <p className="text-gray-600 mt-2">Monitor your team's productivity and performance</p>
+        </div>
+        <div className="flex items-center space-x-4">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -530,6 +619,15 @@ const TeamDashboard = () => {
             blockedTickets={blockedTickets.blockedTickets}
             onViewDetails={() => setShowBlockedTickets(true)}
             onSendAlert={handleSendBlockerAlert}
+          />
+
+          {/* Stagnant Task Alert */}
+          <StagnantTaskAlert
+            stagnantTasks={stagnantTaskDetector.stagnantTasks}
+            thresholdHours={settings?.alerts?.stagnantTaskThresholdHours || 24}
+            thresholdUnit={settings?.alerts?.stagnantTaskThresholdUnit || 'hours'}
+            isMonitoring={stagnantTaskDetector.isMonitoring}
+            lastCheck={stagnantTaskDetector.lastCheck}
           />
 
           {/* Team Members Grid */}

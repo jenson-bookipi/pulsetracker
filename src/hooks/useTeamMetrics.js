@@ -53,7 +53,6 @@ export const useTeamMetrics = ({
     }
 
     try {
-      console.log("trryyyy");
       setClickUpLoading(true);
       setClickUpError(null);
 
@@ -63,7 +62,6 @@ export const useTeamMetrics = ({
       console.error("Error fetching ClickUp tasks:", error);
       setClickUpError(error.message || "Failed to fetch ClickUp tasks");
     } finally {
-      console.log("finallyyyyy");
       setClickUpLoading(false);
     }
   }, [clickUpListId, clickUpToken]);
@@ -181,15 +179,82 @@ export const useTeamMetrics = ({
       return null;
     }
 
-    return calculateTeamProductivity(
-      {
-        tasks: clickUpTasks,
-        pullRequests,
-        commits,
-        teamMemberActivity,
-      },
-      { days }
-    );
+    try {
+      const metrics = calculateTeamProductivity(
+        {
+          tasks: clickUpTasks || [],
+          pullRequests: pullRequests || [],
+          commits: commits || [],
+          teamMemberActivity: teamMemberActivity || {},
+        },
+        { days }
+      );
+
+      // Add detailed health metrics
+      if (metrics?.scores?.health) {
+        // Calculate velocity (points per week)
+        const velocity = metrics.tasks?.velocity?.averagePerWeek || 0;
+
+        // Calculate blocker impact
+        const blockerCount = metrics.tasks?.blocked || 0;
+        const blockerImpact = Math.min(100, (blockerCount / 10) * 100); // 10+ blockers = 100% impact
+
+        // Calculate PR metrics
+        const prMetrics = metrics.code?.pullRequests || {};
+        const prMergeRate =
+          prMetrics.total > 0
+            ? (prMetrics.merged / prMetrics.total) * 100
+            : 100; // Assume healthy if no PRs
+
+        const avgReviewTime = prMetrics.averageTimeToFirstReview || 0;
+        const reviewTimeScore =
+          avgReviewTime > 0
+            ? Math.min(100, (48 / avgReviewTime) * 100) // 48 hours is the target
+            : 100; // Assume healthy if no reviews
+
+        // Enhanced health metrics
+        metrics.healthMetrics = {
+          velocity: {
+            value: velocity,
+            target: 20, // points per week
+            score: Math.min(100, (velocity / 20) * 100),
+          },
+          blockers: {
+            count: blockerCount,
+            impact: blockerImpact,
+            score: Math.max(0, 100 - blockerImpact),
+          },
+          prMergeRate: {
+            value: prMergeRate,
+            target: 70, // 70% merge rate target
+            score: Math.min(100, (prMergeRate / 70) * 100),
+          },
+          reviewTime: {
+            hours: avgReviewTime,
+            target: 48, // hours
+            score: reviewTimeScore,
+          },
+          lastUpdated: new Date().toISOString(),
+        };
+      }
+
+      return metrics;
+    } catch (error) {
+      console.error("Error calculating metrics:", error);
+      return {
+        error: "Failed to calculate metrics",
+        details: error.message,
+        scores: {
+          health: 0,
+          productivity: 0,
+          quality: 0,
+        },
+        healthMetrics: {
+          error: error.message,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+    }
   }, [
     clickUpTasks,
     pullRequests,
@@ -279,12 +344,27 @@ export const useTeamMetrics = ({
   ]);
 
   // Refresh function to manually refetch all data
-  const refreshAll = useCallback(() => {
-    fetchClickUpData();
-    fetchGitHubData();
+  const refreshAll = useCallback(async () => {
+    console.log("=== Starting refreshAll ===");
 
-    if (teamMembers.length > 0) {
-      fetchTeamMemberActivity();
+    try {
+      console.log("Refreshing ClickUp data...");
+      await fetchClickUpData();
+      console.log("ClickUp data refresh complete");
+
+      console.log("Refreshing GitHub data...");
+      await fetchGitHubData();
+      console.log("GitHub data refresh complete");
+
+      if (teamMembers.length > 0) {
+        console.log("Refreshing team member activity...");
+        await fetchTeamMemberActivity();
+        console.log("Team member activity refresh complete");
+      }
+
+      console.log("=== Refresh completed successfully ===");
+    } catch (error) {
+      console.error("Error during refresh:", error);
     }
   }, [
     fetchClickUpData,

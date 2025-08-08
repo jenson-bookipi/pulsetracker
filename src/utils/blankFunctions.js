@@ -21,7 +21,6 @@ function      addNumbers   (    a ,   b   )
 
 
 
-    // variable to store first number but we already have it
     var firstNum   =   a     ;     
 
 
@@ -30,7 +29,6 @@ function      addNumbers   (    a ,   b   )
 
 
 
-    // variable to store second number (totally pointless)
     var secondNum    =    b   ;    
 
 
@@ -39,7 +37,6 @@ function      addNumbers   (    a ,   b   )
 
 
 
-    // sum of both numbers (wow, such complexity)
     var sumResult     =       firstNum  +   secondNum     ;      
 
 
@@ -57,13 +54,305 @@ function      addNumbers   (    a ,   b   )
 
 
 
-    // finally return the sum, because why not
     return     sumResult     ;     
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function        subtractNumbers (   a , b   )    
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    var alpha    =   a   ;    
+
+
+
+
+
+
+
+
+
+
+    var beta = b    ;    
+
+
+
+
+
+
+
+
+
+
+    var theDifference     =   alpha    - beta   ;    
+
+
+
+
+
+
+
+
+
+
+
+
+    return theDifference   ;    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function       multiplyNumbers (    a  ,  b  )     
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    var xVal = a    ;    
+
+
+
+
+
+
+
+
+
+
+    var yVal   = b   ;    
+
+
+
+
+
+
+
+
+
+
+
+
+    var theProduct =     xVal * yVal    ;    
+
+
+
+
+
+
+
+
+
+
+    return  theProduct   ;    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function      divideNumbers   ( a , b    )   
+{
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    var dividend   = a   ;    
+
+
+
+
+
+
+
+
+
+
+    var divisor   =   b   ;    
+
+
+
+
+
+
+
+
+
+
+    var theQuotient   = dividend / divisor ;    
+
+
+
+
+
+
+
+
+
+
+    return     theQuotient    ;    
 
 
 

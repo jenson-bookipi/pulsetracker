@@ -1,16 +1,16 @@
-import { AlertTriangle, Clock, Users } from 'lucide-react'
+import { AlertTriangle, Clock, Users, Construction } from 'lucide-react'
 
 const BlockerAlert = ({ blockedTickets, onViewDetails, onSendAlert }) => {
   if (!blockedTickets || blockedTickets.length === 0) {
     return (
-      <div className="metric-card border-green-200 bg-green-50">
-        <div className="flex items-center text-green-700">
-          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-            <span className="text-green-600 text-lg">✓</span>
+      <div className="metric-card border-orange-200 bg-orange-50">
+        <div className="flex items-center text-orange-700">
+          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+            <Construction className="h-5 w-5 text-orange-600" />
           </div>
           <div>
-            <h3 className="font-semibold">No Blockers</h3>
-            <p className="text-sm text-green-600">All tasks are flowing smoothly!</p>
+            <h3 className="font-semibold">We are under construction</h3>
+            <p className="text-sm text-orange-600">This feature is being developed! 🚧</p>
           </div>
         </div>
       </div>

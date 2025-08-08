@@ -211,36 +211,99 @@ const DeveloperCard = ({
     };
   };
   
-  // Calculate burnout based on workload balance and task completion efficiency
+  // Calculate burnout based on actual workload intensity and team comparison
   const calculateBurnout = () => {
     const totalTasks = taskMetrics.total;
     const completedTasks = taskMetrics.completed;
-    const openTasks = taskMetrics.open;
     const blockedTasks = taskMetrics.blocked;
     const recentCommits = recentActivity.commits;
+    const recentPRs = recentActivity.pullRequests;
     
-    if (totalTasks === 0) return { score: 20, level: 'low' }; // Default low burnout if no tasks
+    // Calculate team averages for relative comparison
+    const teamMembers = ['Heejai Kim', 'Jenson Miralles'];
+    let teamTotalCommits = 0;
+    let teamTotalPRs = 0;
+    let teamTotalTasks = 0;
     
-    // Workload pressure (0-40 points)
-    const taskRatio = openTasks / totalTasks;
-    const workloadPressure = Math.round(taskRatio * 40); // High open task ratio = more pressure
+    teamMembers.forEach(memberName => {
+      const memberGithubName = githubUsernameMap[memberName] || memberName;
+      const memberClickUpId = clickUpUserIdMap[memberName];
+      
+      // Count member's commits
+      const memberCommits = (githubData?.commits || []).filter(commit => {
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const commitDate = new Date(commit.commit?.author?.date || commit.commit?.committer?.date);
+        const authorMatches = commit.author?.login === memberGithubName;
+        const nameMatches = commit.commit?.author?.name === memberName;
+        return (authorMatches || nameMatches) && commitDate >= weekAgo;
+      }).length;
+      
+      // Count member's PRs
+      const memberPRs = (githubData?.pullRequests || []).filter(pr => {
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const prDate = new Date(pr.created_at);
+        return pr.user?.login === memberGithubName && prDate >= weekAgo;
+      }).length;
+      
+      // Count member's tasks
+      const memberTasks = (clickupData?.tasks || []).filter(task => {
+        const assignees = task.assignees || [];
+        if (memberClickUpId) {
+          return assignees.some(assignee => assignee.id === memberClickUpId);
+        }
+        return assignees.some(assignee => 
+          assignee.username === memberName || assignee.name === memberName
+        );
+      }).length;
+      
+      teamTotalCommits += memberCommits;
+      teamTotalPRs += memberPRs;
+      teamTotalTasks += memberTasks;
+    });
     
-    // Task completion efficiency (0-30 points, inverse)
-    const completionRatio = completedTasks / totalTasks;
-    const inefficiencyScore = Math.round((1 - completionRatio) * 30); // Low completion = higher burnout
+    const avgCommits = teamTotalCommits / teamMembers.length;
+    const avgPRs = teamTotalPRs / teamMembers.length;
+    const avgTasks = teamTotalTasks / teamMembers.length;
     
-    // Blocked tasks stress (0-20 points)
-    const blockedStress = Math.round((blockedTasks / totalTasks) * 20);
+    // 1. Development Activity Overload (0-50 points) - Major factor
+    // Compare against team average, heavily weight high activity
+    const commitOverload = avgCommits > 0 ? Math.min(40, (recentCommits / avgCommits - 1) * 25) : 0;
+    const prOverload = avgPRs > 0 ? Math.min(20, (recentPRs / avgPRs - 1) * 15) : 0;
+    const activityOverload = Math.max(0, commitOverload + prOverload);
     
-    // Activity overload (0-10 points) - too many commits can indicate overwork
-    const activityOverload = recentCommits > 15 ? 10 : recentCommits > 10 ? 5 : 0;
+    // 2. Task Management Stress (0-25 points) - Reduced weight
+    const taskOverload = avgTasks > 0 ? Math.min(15, (totalTasks / avgTasks - 1) * 10) : 0;
+    const blockedStress = totalTasks > 0 ? Math.round((blockedTasks / totalTasks) * 10) : 0;
+    const taskStress = Math.max(0, taskOverload + blockedStress);
+    
+    // 3. Work-Life Balance Indicator (0-25 points)
+    // High activity with low completion suggests overcommitment
+    const completionRatio = totalTasks > 0 ? completedTasks / totalTasks : 1;
+    const activityIntensity = recentCommits + (recentPRs * 2); // PRs count more
+    const balanceScore = activityIntensity > 10 && completionRatio < 0.7 ? 25 : 
+                        activityIntensity > 5 && completionRatio < 0.5 ? 15 : 0;
     
     // Total burnout score (max 100)
-    const burnout = Math.min(100, workloadPressure + inefficiencyScore + blockedStress + activityOverload);
+    const burnout = Math.min(100, Math.round(activityOverload + taskStress + balanceScore));
     
-    const level = burnout > 60 ? 'high' : burnout > 35 ? 'medium' : 'low';
+    // More nuanced level calculation
+    const level = burnout > 70 ? 'critical' : 
+                  burnout > 50 ? 'high' : 
+                  burnout > 25 ? 'medium' : 'low';
     
-    return { score: burnout, level };
+    return { 
+      score: burnout, 
+      level,
+      factors: {
+        activityOverload: Math.round(activityOverload),
+        taskStress: Math.round(taskStress),
+        balanceScore: Math.round(balanceScore),
+        teamComparison: {
+          commitsVsAvg: avgCommits > 0 ? (recentCommits / avgCommits).toFixed(1) : 'N/A',
+          prsVsAvg: avgPRs > 0 ? (recentPRs / avgPRs).toFixed(1) : 'N/A'
+        }
+      }
+    };
   };
   
   const spsScore = calculateSPS();

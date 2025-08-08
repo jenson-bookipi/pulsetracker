@@ -371,21 +371,21 @@ const TeamDashboard = () => {
             
             {/* Health & Productivity Scores */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                <div className="text-sm font-medium text-blue-800 mb-1">Team Health</div>
-                <div className="text-3xl font-bold text-blue-600">
+              <div className="bg-pink-50 rounded-lg p-4 border border-pink-100">
+                <div className="text-sm font-medium text-pink-800 mb-1">❤️ Team Health</div>
+                <div className="text-3xl font-bold text-pink-600">
                   {teamHealthScore || 0}%
                 </div>
-                <div className="h-2 bg-blue-100 rounded-full mt-2 overflow-hidden">
+                <div className="h-2 bg-pink-100 rounded-full mt-2 overflow-hidden">
                   <div 
-                    className="h-full bg-blue-600 rounded-full" 
+                    className="h-full bg-pink-600 rounded-full" 
                     style={{ width: `${teamHealthScore || 0}%` }}
                   />
                 </div>
               </div>
               
               <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-                <div className="text-sm font-medium text-green-800 mb-1">Productivity</div>
+                <div className="text-sm font-medium text-green-800 mb-1">📊 Productivity</div>
                 <div className="text-3xl font-bold text-green-600">
                   {metrics?.scores?.productivity || 0}%
                 </div>
@@ -397,14 +397,14 @@ const TeamDashboard = () => {
                 </div>
               </div>
               
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
-                <div className="text-sm font-medium text-purple-800 mb-1">Code Quality Velocity</div>
-                <div className="text-3xl font-bold text-purple-600">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="text-sm font-medium text-blue-800 mb-1">✅ Code Quality Velocity</div>
+                <div className="text-3xl font-bold text-blue-600">
                   {metrics?.scores?.quality || 0}%
                 </div>
-                <div className="h-2 bg-purple-100 rounded-full mt-2 overflow-hidden">
+                <div className="h-2 bg-blue-100 rounded-full mt-2 overflow-hidden">
                   <div 
-                    className="h-full bg-purple-600 rounded-full" 
+                    className="h-full bg-blue-600 rounded-full" 
                     style={{ width: `${metrics?.scores?.quality || 0}%` }}
                   />
                 </div>
@@ -582,9 +582,16 @@ const TeamDashboard = () => {
             )}
           </div>
 
-          {/* Blocker Alert */}
+          {/* Blocker Alert - Only show when there are blockers OR when there are no blockers (for the green success message) */}
+          {/* Use teamMetrics blocked tasks data instead of useBlockedTickets hook which depends on clickupData */}
           <BlockerAlert
-            blockedTickets={blockedTickets.blockedTickets}
+            blockedTickets={metrics?.tasks?.blocked > 0 ? [{
+              id: 'blocked-summary',
+              name: `${metrics.tasks.blocked} tasks currently blocked`,
+              assigneeName: 'Team',
+              hoursBlocked: 24,
+              priorityLevel: metrics.tasks.blocked > 5 ? 'critical' : metrics.tasks.blocked > 2 ? 'high' : 'medium'
+            }] : []}
             onViewDetails={() => setShowBlockedTickets(true)}
             onSendAlert={handleSendBlockerAlert}
           />

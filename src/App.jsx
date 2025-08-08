@@ -8,15 +8,12 @@ function App() {
 
   const navigation = [
     { id: 'dashboard', name: 'Dashboard', icon: Activity },
-    { id: 'team', name: 'Team', icon: Users },
     { id: 'settings', name: 'Settings', icon: Settings },
   ]
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <TeamDashboard />
-      case 'team':
         return <TeamDashboard />
       case 'settings':
         return <SettingsPage />

@@ -438,85 +438,7 @@ const DeveloperCard = ({
     }
   ];
   
-  // Calculate last activity time from both GitHub and ClickUp
-  const getLastActivity = () => {
-    const now = Date.now();
-    let lastActivityTime = 0;
-    
-    // Check GitHub activity (commits and PRs)
-    if (githubData?.commits) {
-      const memberName = githubUsernameMap[developer.name] || developer.githubUsername || developer.name;
-      
-      // Find most recent commit by this member
-      const memberCommits = githubData.commits.filter(commit => 
-        commit.author?.login === memberName || commit.commit?.author?.name === developer.name
-      );
-      
-      if (memberCommits.length > 0) {
-        const latestCommit = memberCommits.reduce((latest, commit) => {
-          const commitTime = new Date(commit.commit?.author?.date || commit.commit?.committer?.date).getTime();
-          return commitTime > latest ? commitTime : latest;
-        }, 0);
-        lastActivityTime = Math.max(lastActivityTime, latestCommit);
-      }
-      
-      // Check PRs by this member
-      const memberPRs = (githubData.pullRequests || []).filter(pr => 
-        pr.user?.login === memberName
-      );
-      
-      if (memberPRs.length > 0) {
-        const latestPR = memberPRs.reduce((latest, pr) => {
-          const prTime = new Date(pr.created_at).getTime();
-          return prTime > latest ? prTime : latest;
-        }, 0);
-        lastActivityTime = Math.max(lastActivityTime, latestPR);
-      }
-    }
-    
-    // Check ClickUp activity (task updates) using ID-based matching
-    if (clickupData?.tasks) {
-      const memberTasks = clickupData.tasks.filter(task => {
-        const assignees = task.assignees || [];
-        const memberClickUpId = clickUpUserIdMap[developer.name];
-        
-        // If we have a valid ClickUp ID, use ID-based matching only
-        if (memberClickUpId) {
-          return assignees.some(assignee => assignee.id === memberClickUpId);
-        }
-        
-        // Fallback to username matching only if no ID available
-        return assignees.some(assignee => {
-          const usernameExactMatch = assignee.username === developer.name;
-          const usernameContainsName = assignee.username?.includes(developer.name);
-          const emailMatch = assignee.email?.includes(developer.name.toLowerCase().replace(' ', '.'));
-          return usernameExactMatch || usernameContainsName || emailMatch;
-        });
-      });
-      
-      if (memberTasks.length > 0) {
-        const latestTaskUpdate = memberTasks.reduce((latest, task) => {
-          const taskTime = parseInt(task.date_updated || task.date_created || '0');
-          return taskTime > latest ? taskTime : latest;
-        }, 0);
-        lastActivityTime = Math.max(lastActivityTime, latestTaskUpdate);
-      }
-    }
-    
-    // Format the time difference
-    if (lastActivityTime === 0) {
-      return 'No recent activity';
-    }
-    
-    const diffMs = now - lastActivityTime;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffHours < 1) return 'Active now';
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return `${Math.floor(diffDays / 7)}w ago`;
-  }
+
   
   // Happiness helper functions
   const getHappinessColor = (score) => {
@@ -663,19 +585,12 @@ const DeveloperCard = ({
           <span className="font-bold text-gray-900">{recentActivity.pullRequests}</span>
         </div>
         <div className="flex items-center text-gray-600">
-          <Users className="h-4 w-4 mr-1" />
-          <span className="font-bold text-gray-900">{recentActivity.reviews || 8}</span>
-        </div>
-        <div className="flex items-center text-gray-600">
           <Clock className="h-4 w-4 mr-1" />
           <span className="font-bold text-gray-900">{Math.floor(Math.random() * 8) + 4}h</span>
         </div>
       </div>
 
-      {/* Last Activity */}
-      <div className="text-sm text-gray-500 mb-4">
-        Last active: <span className="font-medium text-gray-700">{getLastActivity()}</span>
-      </div>
+
 
       {/* Pulse Factor */}
       <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">

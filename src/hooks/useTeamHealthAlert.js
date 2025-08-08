@@ -48,7 +48,7 @@ export const useTeamHealthAlert = (
   }, []);
   const { enabled = true, channel = "#hackathon-pulsetracker" } = options;
   const WEBHOOK_URL =
-    "https://hooks.slack.com/services/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";
+    "https://hooks.slack.com/services/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";
   const { sendMessage } = useSlackWebhook(WEBHOOK_URL);
   const lastAlertTime = useRef(0);
   const cooldownPeriod = 24 * 60 * 60 * 1000; // 24 hours cooldown between alerts
@@ -224,13 +224,14 @@ export const useTeamHealthAlert = (
     const currentTime = Date.now();
     const healthScore =
       typeof metrics.healthScore === "number" ? metrics.healthScore : 0;
+    lastAlertTime.current = currentTime;
 
     // Check if health score is below threshold and cooldown has passed
     if (
       healthScore < healthThreshold &&
       currentTime - lastAlertTime.current > cooldownPeriod
     ) {
-      // throttledSend(healthScore, currentTime);
+      throttledSend(healthScore, currentTime);
     }
   }, [
     metrics?.healthScore,
@@ -238,6 +239,34 @@ export const useTeamHealthAlert = (
     enabled,
     throttledSend,
     settings.clickup.token,
+  ]);
+
+  // Check if we should send an alert for Pull request velocity
+  useEffect(() => {
+    if (!enabled || !metrics?.qualityScore) return;
+
+    const currentTime = Date.now();
+    const healthScore =
+      typeof metrics.qualityScore === "number" ? metrics.qualityScore : 0;
+      const QUALITY_THRESHOLD = 50;
+      lastAlertTime.current = currentTime;
+
+    // Check if health score is below threshold and cooldown has passed
+    if (
+      healthScore < QUALITY_THRESHOLD &&
+      currentTime - lastAlertTime.current > cooldownPeriod
+    ) {
+      sendMessage(
+        `🚨 *Team Pull request Alert*: Score has dropped to 📉 ${metrics.qualityScore}%\n` +
+        `Please prioritize pull request reviews to unblock other developers.`,
+        settings.slack.channel
+      );
+    }
+  }, [
+    metrics?.qualityScore,
+    enabled,
+    throttledSend,
+    settings.slack.channel
   ]);
 
   return {

@@ -249,7 +249,7 @@ const TeamDashboard = () => {
   console.log('Team Health Score:', teamHealthScore, 'Metrics:', metrics?.scores);
   // Initialize team health alert
   useTeamHealthAlert(
-    { healthScore: teamHealthScore },
+    { healthScore: teamHealthScore, productivityScore: metrics?.scores?.productivity, qualityScore: metrics?.scores?.quality},
     50, // Alert threshold (50%)
     { 
       enabled: true,
@@ -395,7 +395,7 @@ const TeamDashboard = () => {
               </div>
               
               <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
-                <div className="text-sm font-medium text-purple-800 mb-1">Code Quality</div>
+                <div className="text-sm font-medium text-purple-800 mb-1">Code Quality Velocity</div>
                 <div className="text-3xl font-bold text-purple-600">
                   {metrics?.scores?.quality || 0}%
                 </div>

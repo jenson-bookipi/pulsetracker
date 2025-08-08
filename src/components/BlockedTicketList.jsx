@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Clock, User, ExternalLink, MessageCircle, RefreshCw, UserX } from 'lucide-react'
+import { AlertTriangle, Clock, User, ExternalLink, MessageCircle, RefreshCw, UserX, Construction } from 'lucide-react'
 
 const BlockedTicketList = ({ blockedTickets, onExecuteAction, onOpenTask }) => {
   const [executingActions, setExecutingActions] = useState(new Set())
@@ -7,11 +7,11 @@ const BlockedTicketList = ({ blockedTickets, onExecuteAction, onOpenTask }) => {
   if (!blockedTickets || blockedTickets.length === 0) {
     return (
       <div className="metric-card text-center py-8">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="text-green-600 text-2xl">✓</span>
+        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Construction className="h-8 w-8 text-orange-600" />
         </div>
-        <h3 className="font-semibold text-gray-900 mb-2">No Blocked Tasks</h3>
-        <p className="text-gray-500">All tasks are flowing smoothly! 🎉</p>
+        <h3 className="font-semibold text-gray-900 mb-2">We are under construction</h3>
+        <p className="text-gray-500">This feature is being developed! 🚧</p>
       </div>
     )
   }

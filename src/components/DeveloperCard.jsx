@@ -195,7 +195,7 @@ const DeveloperCard = ({
     return { memberScores, teamAverage: Math.round(teamAverage) };
   };
   
-  // Calculate Happiness Factor and team average difference
+  // Calculate Pulse Factor and team average difference
   const calculateHappiness = () => {
     const { memberScores, teamAverage } = calculateAllMemberHappiness();
     
@@ -614,10 +614,10 @@ const DeveloperCard = ({
         Last active: <span className="font-medium text-gray-700">{getLastActivity()}</span>
       </div>
 
-      {/* Happiness Factor */}
+      {/* Pulse Factor */}
       <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-gray-900 text-sm">Happiness Factor</h4>
+          <h4 className="font-semibold text-gray-900 text-sm">Pulse Factor</h4>
           <div className="flex items-center">
             {getTrendIcon(getHappinessTrend(happinessData?.score || 50))}
             <span className="ml-1 text-xs text-gray-500 capitalize">

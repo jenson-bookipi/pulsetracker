@@ -228,10 +228,10 @@ const TeamDashboard = () => {
     
     // Get base scores from metrics
     const {
-      health = 100,
-      productivity = 100,
-      quality = 100,
-      velocity = 100
+      health = 0,
+      productivity = 0,
+      quality = 0,
+      velocity = 0
     } = metrics.scores;
     
     // Calculate weighted average with emphasis on health and productivity

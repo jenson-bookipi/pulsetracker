@@ -160,7 +160,33 @@ export const useTeamHealthAlert = (
     }, 1000) // 1000ms throttle
   ).current;
 
+  // Check if we should send an alert
+  // NOTIFY_HEALTH
+  useEffect(() => {
+    if (!enabled || !metrics?.healthScore) return;
+
+    const currentTime = Date.now();
+    const healthScore =
+      typeof metrics.healthScore === "number" ? metrics.healthScore : 0;
+    lastAlertTime.current = currentTime;
+
+    // Check if health score is below threshold and cooldown has passed
+    if (
+      healthScore < healthThreshold &&
+      currentTime - lastAlertTime.current > cooldownPeriod
+    ) {
+      throttledSend(healthScore, currentTime);
+    }
+  }, [
+    metrics?.healthScore,
+    healthThreshold,
+    enabled,
+    throttledSend,
+    settings.clickup.token,
+  ]);
+
   // Separate useEffect for fetching ticket information
+  //OVERDUE
   useEffect(() => {
     // Function to fetch ticket information using clickupService
     const fetchTicketInfo = async (taskId) => {
@@ -217,31 +243,8 @@ export const useTeamHealthAlert = (
       .catch((error) => console.error("Example fetch failed:", error));
   }, [settings.clickup?.token]);
 
-  // Check if we should send an alert
-  useEffect(() => {
-    if (!enabled || !metrics?.healthScore) return;
-
-    const currentTime = Date.now();
-    const healthScore =
-      typeof metrics.healthScore === "number" ? metrics.healthScore : 0;
-    lastAlertTime.current = currentTime;
-
-    // Check if health score is below threshold and cooldown has passed
-    if (
-      healthScore < healthThreshold &&
-      currentTime - lastAlertTime.current > cooldownPeriod
-    ) {
-      throttledSend(healthScore, currentTime);
-    }
-  }, [
-    metrics?.healthScore,
-    healthThreshold,
-    enabled,
-    throttledSend,
-    settings.clickup.token,
-  ]);
-
   // Check if we should send an alert for Pull request velocity
+  // PULL_REQUEST_VELOCITY
   useEffect(() => {
     if (!enabled || !metrics?.qualityScore) return;
 

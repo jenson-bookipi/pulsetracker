@@ -48,7 +48,7 @@ export const useTeamHealthAlert = (
   }, []);
   const { enabled = true, channel = "#hackathon-pulsetracker" } = options;
   const WEBHOOK_URL =
-    "https://hooks.slack.com/services/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";
+    "https://hooks.slack.com/services/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";
   const { sendMessage } = useSlackWebhook(WEBHOOK_URL);
   const lastAlertTime = useRef(0);
   const cooldownPeriod = 24 * 60 * 60 * 1000; // 24 hours cooldown between alerts

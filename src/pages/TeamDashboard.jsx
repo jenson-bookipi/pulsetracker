@@ -224,7 +224,7 @@ const TeamDashboard = () => {
   // Calculate team health score (0-100) based on Team Metrics Overview
   const metrics = teamMetrics.metrics
   const teamHealthScore = useMemo(() => {
-    if (!metrics?.scores) return 100; // Default to healthy if no metrics
+    if (!metrics?.scores) return 0; // Default to healthy if no metrics
     
     // Get base scores from metrics
     const {
@@ -246,14 +246,15 @@ const TeamDashboard = () => {
     return Math.max(0, Math.min(100, calculatedScore));
   }, [metrics?.scores]);
 
-  console.log('Team Health Score:', teamHealthScore, 'Metrics:', metrics?.scores);
-  // Initialize team health alert
   useTeamHealthAlert(
-    { healthScore: teamHealthScore, productivityScore: metrics?.scores?.productivity, qualityScore: metrics?.scores?.quality},
-    50, // Alert threshold (50%)
+    {
+      ...teamMetrics.metrics,
+      healthScore: teamHealthScore // Override with our calculated score
+    },
+    50, // threshold
     { 
       enabled: true,
-      channel: settings?.slack?.alertChannel || '#hackathon-pulsetracker'
+      channel: '#hackathon-pulsetracker' 
     }
   );
 
@@ -335,27 +336,29 @@ const TeamDashboard = () => {
       )}
 
       {/* Health Score Banner */}
-      <div className="health-score-banner" style={{
-        backgroundColor: teamHealthScore < 50 ? '#ffebee' : teamHealthScore < 70 ? '#fff8e1' : '#e8f5e9',
-        padding: '10px',
-        marginBottom: '20px',
-        borderRadius: '4px',
-        textAlign: 'center',
-        borderLeft: `5px solid ${
-          teamHealthScore < 50 ? '#f44336' : teamHealthScore < 70 ? '#ffc107' : '#4caf50'
-        }`
-      }}>
-        <h3>Team Health Score: <strong>{teamHealthScore}%</strong></h3>
-        {teamHealthScore < 50 && (
-          <p>⚠️ <strong>Critical:</strong> Immediate attention required to address team health issues.</p>
-        )}
-        {teamHealthScore >= 50 && teamHealthScore < 70 && (
-          <p>⚠️ <strong>Warning:</strong> Monitor team health closely and consider interventions.</p>
-        )}
-        {teamHealthScore >= 70 && (
-          <p>✅ <strong>Good:</strong> Team health is in a good state.</p>
-        )}
-      </div>
+      {!!teamHealthScore && (
+        <div className="health-score-banner" style={{
+          backgroundColor: teamHealthScore < 50 ? '#ffebee' : teamHealthScore < 70 ? '#fff8e1' : '#e8f5e9',
+          padding: '10px',
+          marginBottom: '20px',
+          borderRadius: '4px',
+          textAlign: 'center',
+          borderLeft: `5px solid ${
+            teamHealthScore < 50 ? '#f44336' : teamHealthScore < 70 ? '#ffc107' : '#4caf50'
+          }`
+        }}>
+          <h3>Team Health Score: <strong>{teamHealthScore}%</strong></h3>
+          {teamHealthScore < 50 && (
+            <p>⚠️ <strong>Critical:</strong> Immediate attention required to address team health issues.</p>
+          )}
+          {teamHealthScore >= 50 && teamHealthScore < 70 && (
+            <p>⚠️ <strong>Warning:</strong> Monitor team health closely and consider interventions.</p>
+          )}
+          {teamHealthScore >= 70 && (
+            <p>✅ <strong>Good:</strong> Team health is in a good state.</p>
+          )}
+        </div>
+      )}
 
       {!isLoading && (
         <>
@@ -371,12 +374,12 @@ const TeamDashboard = () => {
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                 <div className="text-sm font-medium text-blue-800 mb-1">Team Health</div>
                 <div className="text-3xl font-bold text-blue-600">
-                  {metrics?.scores?.health || 0}%
+                  {teamHealthScore || 0}%
                 </div>
                 <div className="h-2 bg-blue-100 rounded-full mt-2 overflow-hidden">
                   <div 
                     className="h-full bg-blue-600 rounded-full" 
-                    style={{ width: `${metrics?.scores?.health || 0}%` }}
+                    style={{ width: `${teamHealthScore || 0}%` }}
                   />
                 </div>
               </div>
@@ -477,7 +480,7 @@ const TeamDashboard = () => {
                     <div>
                       <h3 className="font-medium text-gray-700">Velocity</h3>
                       <p className="text-sm text-gray-500">
-                        {metrics?.healthMetrics?.velocity?.value?.toFixed(1) || '0.0'} points/week
+                        {metrics?.healthMetrics?.velocity?.value?.toFixed(1) || 0} points/week
                         <span className="ml-2 text-xs">
                           (target: {metrics?.healthMetrics?.velocity?.target || 20})
                         </span>

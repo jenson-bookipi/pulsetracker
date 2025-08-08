@@ -48,7 +48,7 @@ export const useTeamHealthAlert = (
   }, []);
   const { enabled = true, channel = "#hackathon-pulsetracker" } = options;
   const WEBHOOK_URL =
-    "https://hooks.slack.com/services/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";
+    "https://hooks.slack.com/services/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";
   const { sendMessage } = useSlackWebhook(WEBHOOK_URL);
   const lastAlertTime = useRef(0);
   const cooldownPeriod = 24 * 60 * 60 * 1000; // 24 hours cooldown between alerts
@@ -172,10 +172,9 @@ export const useTeamHealthAlert = (
 
     // Check if health score is below threshold and cooldown has passed
     if (
-      healthScore < healthThreshold &&
-      currentTime - lastAlertTime.current > cooldownPeriod
+      healthScore < healthThreshold 
     ) {
-      throttledSend(healthScore, currentTime);
+      // throttledSend(healthScore, currentTime);
     }
   }, [
     metrics?.healthScore,
@@ -220,15 +219,16 @@ export const useTeamHealthAlert = (
           task.due_date &&
           task.status?.status === "in progress" &&
           new Date(Number(task.due_date)) < new Date();
+          console.log('isOverdue', isOverdue)
         if (isOverdue) {
-          sendMessage(
-            `Hey, ${task.assignees?.[0]?.username.split(" ")[0]}, Task ${
-              task.name
-            } is overdue with 🚨 ${
-              task.priority.priority
-            } priority. Please check it out`,
-            settings.slack.channel
-          );
+          // sendMessage(
+          //   `Hey, ${task.assignees?.[0]?.username.split(" ")[0]}, Task ${
+          //     task.name
+          //   } is overdue with 🚨 ${
+          //     task.priority.priority
+          //   } priority. Please check it out`,
+          //   settings.slack.channel
+          // );
         }
 
         return task;

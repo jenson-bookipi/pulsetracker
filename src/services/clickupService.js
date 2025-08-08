@@ -180,7 +180,7 @@ export const calculateBlockerMetrics = (tasks) => {
   });
 
   return {
-    totalBlocked: blockedTasks.length / 2,
+    totalBlocked: Math.round(blockedTasks.length / 2),
     byStatus: blockedTasks.reduce((acc, task) => {
       const status = task.status?.status || "No Status";
       acc[status] = (acc[status] || 0) + 1;
